@@ -17,6 +17,10 @@ class PlayerClient {
   final StreamController<void> _gameStartedController =
       StreamController<void>.broadcast();
 
+  List<Player> _latestPlayers = [];
+
+  Completer<void>? _joinCompleter;
+
   Stream<List<Player>> get playersStream =>
       _playersController.stream;
 
@@ -25,6 +29,9 @@ class PlayerClient {
 
   Stream<void> get gameStartedStream =>
       _gameStartedController.stream;
+
+  List<Player> get latestPlayers =>
+      List.unmodifiable(_latestPlayers);
 
   bool get isConnected => _channel != null;
 
@@ -41,23 +48,52 @@ class PlayerClient {
 
     _statusController.add('Connecting...');
 
+    _joinCompleter = Completer<void>();
+
     try {
+      print('Connecting to: $url');
+
       _channel = WebSocketChannel.connect(url);
 
       await _channel!.ready;
 
-      _statusController.add('Connected');
+      print('WebSocket connection established');
+
+      _statusController.add('Connected to host');
 
       _channel!.stream.listen(
         _handleMessage,
         onDone: () {
+          print('WebSocket disconnected');
+
           _channel = null;
+
+          if (_joinCompleter != null &&
+              !_joinCompleter!.isCompleted) {
+            _joinCompleter!.completeError(
+              Exception(
+                'Host closed the connection before joining.',
+              ),
+            );
+          }
+
           _statusController.add('Disconnected');
         },
         onError: (error) {
+          print('WebSocket error: $error');
+
           _channel = null;
-          _statusController.add('Connection error');
+
+          if (_joinCompleter != null &&
+              !_joinCompleter!.isCompleted) {
+            _joinCompleter!.completeError(error);
+          }
+
+          _statusController.add(
+            'Connection error: $error',
+          );
         },
+        cancelOnError: false,
       );
 
       _send({
@@ -65,54 +101,115 @@ class PlayerClient {
         'id': playerId,
         'name': playerName,
       });
+
+      print('Join request sent');
+
+      // Wait until the HOST confirms that we joined.
+      await _joinCompleter!.future;
+
+      print('Host confirmed player joined');
+
+      _statusController.add('Joined game');
     } catch (e) {
+      print('Connection failed: $e');
+
       _channel = null;
-      _statusController.add('Unable to connect');
+
+      _statusController.add(
+        'Connection failed',
+      );
+
       rethrow;
     }
   }
 
   void _handleMessage(dynamic data) {
     try {
-      final message = jsonDecode(data.toString());
+      final message = jsonDecode(
+        data.toString(),
+      );
 
       final type = message['type'];
 
+      print('Received message: $message');
+
       switch (type) {
         case 'joined':
-          _statusController.add('Joined game');
+          _handleJoined(message);
           break;
 
         case 'players':
-          final rawPlayers = message['players'] as List<dynamic>;
-
-          final players = rawPlayers
-              .map(
-                (json) => Player.fromJson(
-                  Map<String, dynamic>.from(json),
-                ),
-              )
-              .toList();
-
-          _playersController.add(players);
+          _handlePlayers(message);
           break;
 
         case 'start_game':
           _gameStartedController.add(null);
           break;
+
+        default:
+          print(
+            'Unknown server message type: $type',
+          );
       }
     } catch (e) {
-      print('Invalid server message: $e');
+      print(
+        'Invalid server message: $e',
+      );
     }
   }
 
-  void _send(Map<String, dynamic> message) {
-    _channel?.sink.add(
+  void _handleJoined(
+    Map<String, dynamic> message,
+  ) {
+    final roomCode =
+        message['roomCode']?.toString() ?? '';
+
+    print(
+      'JOIN CONFIRMED. Room: $roomCode',
+    );
+
+    if (_joinCompleter != null &&
+        !_joinCompleter!.isCompleted) {
+      _joinCompleter!.complete();
+    }
+  }
+
+  void _handlePlayers(
+    Map<String, dynamic> message,
+  ) {
+    final rawPlayers =
+        message['players'] as List<dynamic>? ?? [];
+
+    final players = rawPlayers
+        .map(
+          (json) => Player.fromJson(
+            Map<String, dynamic>.from(json),
+          ),
+        )
+        .toList();
+
+    _latestPlayers = players;
+
+    _playersController.add(
+      List.unmodifiable(_latestPlayers),
+    );
+  }
+
+  void _send(
+    Map<String, dynamic> message,
+  ) {
+    if (_channel == null) {
+      return;
+    }
+
+    _channel!.sink.add(
       jsonEncode(message),
     );
   }
 
   Future<void> disconnect() async {
+    _joinCompleter = null;
+
     if (_channel != null) {
       try {
         _send({
