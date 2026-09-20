@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../models/game_state.dart';
 import '../models/player.dart';
 import '../network/player_client.dart';
-import 'game_page.dart';
+import 'game_round_page.dart';
 
 class JoinLobbyPage extends StatefulWidget {
   final PlayerClient client;
@@ -31,12 +32,14 @@ class _JoinLobbyPageState
   StreamSubscription<String>?
       _statusSubscription;
 
-  StreamSubscription<void>?
-      _gameSubscription;
+  StreamSubscription<GameState>?
+      _gameStateSubscription;
 
   List<Player> _players = [];
 
   String _status = 'Connected';
+
+  bool _gameStarted = false;
 
   @override
   void initState() {
@@ -66,29 +69,39 @@ class _JoinLobbyPageState
       },
     );
 
-    _gameSubscription =
-        widget.client.gameStartedStream.listen(
-      (_) {
-        if (!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GamePage(
-              isHost: false,
-              players: _players,
-            ),
-          ),
-        );
-      },
+    _gameStateSubscription =
+        widget.client.gameStateStream.listen(
+      _onGameState,
     );
+  }
+
+  void _onGameState(GameState state) {
+    if (!mounted || _gameStarted) {
+      return;
+    }
+
+    if (state.phase == GamePhase.playing) {
+      _gameStarted = true;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GameRoundPage(
+            isHost: false,
+            players: _players,
+            initialState: state,
+            playerClient: widget.client,
+          ),
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     _playersSubscription?.cancel();
     _statusSubscription?.cancel();
-    _gameSubscription?.cancel();
+    _gameStateSubscription?.cancel();
 
     super.dispose();
   }

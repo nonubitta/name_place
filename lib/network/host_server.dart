@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-
+import '../models/game_state.dart';
 import '../models/player.dart';
 import 'discovery_service.dart';
+import 'dart:math';
+import '../models/game_state.dart';
 
 class HostServer {
   static const int webSocketPort = 4040;
@@ -36,9 +38,7 @@ class HostServer {
 
   bool get gameStarted => _gameStarted;
 
-  Future<void> start({
-    required String hostName,
-  }) async {
+  Future<void> start({required String hostName}) async {
     await stop();
 
     _hostName = hostName;
@@ -83,9 +83,17 @@ class HostServer {
       return;
     }
 
-    WebSocketTransformer.upgrade(request).then(
-      _handleWebSocket,
-    );
+    WebSocketTransformer.upgrade(request).then(_handleWebSocket);
+  }
+
+  void broadcastGameState(GameState state) {
+    final message = jsonEncode({'type': 'game_state', 'state': state.toJson()});
+
+    for (final socket in _connections.values) {
+      try {
+        socket.add(message);
+      } catch (_) {}
+    }
   }
 
   void _handleWebSocket(WebSocket socket) {
@@ -115,14 +123,11 @@ class HostServer {
               _connections[playerId!] = socket;
               _players[playerId!] = player;
 
-              _send(
-                socket,
-                {
-                  'type': 'joined',
-                  'id': player.id,
-                  'roomCode': _roomCode,
-                },
-              );
+              _send(socket, {
+                'type': 'joined',
+                'id': player.id,
+                'roomCode': _roomCode,
+              });
 
               _broadcastPlayers();
 
@@ -165,16 +170,9 @@ class HostServer {
   }
 
   void _broadcastPlayers() {
-    final players = _players.values
-        .map(
-          (player) => player.toJson(),
-        )
-        .toList();
+    final players = _players.values.map((player) => player.toJson()).toList();
 
-    final message = jsonEncode({
-      'type': 'players',
-      'players': players,
-    });
+    final message = jsonEncode({'type': 'players', 'players': players});
 
     for (final socket in _connections.values) {
       try {
@@ -182,14 +180,11 @@ class HostServer {
       } catch (_) {}
     }
 
-    _playersController.add(
-      List.unmodifiable(
-        _players.values,
-      ),
-    );
+    _playersController.add(List.unmodifiable(_players.values));
 
     _updateDiscovery();
   }
+
 
   void _updateDiscovery() {
     _discovery.startHost(
@@ -199,34 +194,38 @@ class HostServer {
     );
   }
 
-  void startGame() {
-    if (_gameStarted) {
-      return;
-    }
+GameState startFirstRound() {
+  final random = Random.secure();
 
-    _gameStarted = true;
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-    final message = jsonEncode({
-      'type': 'start_game',
-      'roomCode': _roomCode,
-    });
+  final letter =
+      letters[random.nextInt(letters.length)];
 
-    for (final socket in _connections.values) {
-      try {
-        socket.add(message);
-      } catch (_) {}
-    }
+  final state = GameState(
+    phase: GamePhase.playing,
+    letter: letter,
+    round: 1,
+    timeRemaining: 30,
+  );
 
-    _gameStartedController.add(null);
+  broadcastGameState(state);
+
+  return state;
+}
+
+GameState? startGame() {
+  if (_gameStarted) {
+    return null;
   }
 
-  void _send(
-    WebSocket socket,
-    Map<String, dynamic> message,
-  ) {
-    socket.add(
-      jsonEncode(message),
-    );
+  _gameStarted = true;
+
+  return startFirstRound();
+}
+
+  void _send(WebSocket socket, Map<String, dynamic> message) {
+    socket.add(jsonEncode(message));
   }
 
   Future<void> stop() async {

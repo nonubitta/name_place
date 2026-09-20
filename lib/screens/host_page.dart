@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../models/game_state.dart';
 import '../models/player.dart';
 import '../network/host_server.dart';
-import 'game_page.dart';
+import 'game_round_page.dart';
 
 class HostPage extends StatefulWidget {
   const HostPage({super.key});
@@ -16,15 +17,19 @@ class HostPage extends StatefulWidget {
 class _HostPageState extends State<HostPage> {
   final HostServer _server = HostServer();
 
-  final TextEditingController _nameController =
-      TextEditingController(text: 'Host');
+  final TextEditingController _nameController = TextEditingController(
+    text: 'Host',
+  );
 
   StreamSubscription<List<Player>>? _playersSubscription;
+
   StreamSubscription<void>? _gameSubscription;
 
   List<Player> _players = [];
 
   bool _starting = true;
+
+  bool _gameStarted = false;
 
   @override
   void initState() {
@@ -34,35 +39,15 @@ class _HostPageState extends State<HostPage> {
   }
 
   Future<void> _startHost() async {
-    await _server.start(
-      hostName: _nameController.text.trim(),
-    );
+    await _server.start(hostName: _nameController.text.trim());
 
-    _playersSubscription = _server.playersStream.listen(
-      (players) {
-        if (!mounted) return;
+    _playersSubscription = _server.playersStream.listen((players) {
+      if (!mounted) return;
 
-        setState(() {
-          _players = players;
-        });
-      },
-    );
-
-    _gameSubscription = _server.gameStartedStream.listen(
-      (_) {
-        if (!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GamePage(
-              isHost: true,
-              players: _players,
-            ),
-          ),
-        );
-      },
-    );
+      setState(() {
+        _players = players;
+      });
+    });
 
     if (!mounted) return;
 
@@ -74,17 +59,31 @@ class _HostPageState extends State<HostPage> {
   void _startGame() {
     if (_players.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Waiting for at least one player.',
-          ),
-        ),
+        const SnackBar(content: Text('Waiting for at least one player.')),
       );
 
       return;
     }
 
-    _server.startGame();
+    final state = _server.startGame();
+
+    if (state == null) {
+      return;
+    }
+
+    _gameStarted = true;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GameRoundPage(
+          isHost: true,
+          players: List<Player>.from(_players),
+          initialState: state,
+          hostServer: _server,
+        ),
+      ),
+    );
   }
 
   @override
@@ -94,7 +93,11 @@ class _HostPageState extends State<HostPage> {
 
     _nameController.dispose();
 
-    _server.dispose();
+    // IMPORTANT:
+    // Keep the server alive after moving to GameRoundPage.
+    if (!_gameStarted) {
+      _server.dispose();
+    }
 
     super.dispose();
   }
@@ -102,19 +105,14 @@ class _HostPageState extends State<HostPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Game Lobby'),
-      ),
+      appBar: AppBar(title: const Text('Game Lobby')),
       body: _starting
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildRoomCard(),
 
@@ -140,15 +138,10 @@ class _HostPageState extends State<HostPage> {
 
                     FilledButton.icon(
                       onPressed: _startGame,
-                      icon: const Icon(
-                        Icons.play_arrow,
-                      ),
-                      label: const Text(
-                        'START GAME',
-                      ),
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('START GAME'),
                       style: FilledButton.styleFrom(
-                        minimumSize:
-                            const Size.fromHeight(52),
+                        minimumSize: const Size.fromHeight(52),
                       ),
                     ),
                   ],
@@ -202,17 +195,9 @@ class _HostPageState extends State<HostPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.people_outline,
-            size: 60,
-          ),
+          Icon(Icons.people_outline, size: 60),
           SizedBox(height: 16),
-          Text(
-            'Waiting for players...',
-            style: TextStyle(
-              fontSize: 18,
-            ),
-          ),
+          Text('Waiting for players...', style: TextStyle(fontSize: 18)),
         ],
       ),
     );
@@ -228,20 +213,14 @@ class _HostPageState extends State<HostPage> {
           child: ListTile(
             leading: CircleAvatar(
               child: Text(
-                player.name.isEmpty
-                    ? '?'
-                    : player.name[0].toUpperCase(),
+                player.name.isEmpty ? '?' : player.name[0].toUpperCase(),
               ),
             ),
             title: Text(
               player.name,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            trailing: const Icon(
-              Icons.check_circle,
-            ),
+            trailing: const Icon(Icons.check_circle),
           ),
         );
       },

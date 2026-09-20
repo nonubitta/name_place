@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-
+import '../models/game_state.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/player.dart';
@@ -17,21 +17,22 @@ class PlayerClient {
   final StreamController<void> _gameStartedController =
       StreamController<void>.broadcast();
 
+  final StreamController<GameState> _gameStateController =
+      StreamController<GameState>.broadcast();
+
+  Stream<GameState> get gameStateStream => _gameStateController.stream;
+
   List<Player> _latestPlayers = [];
 
   Completer<void>? _joinCompleter;
 
-  Stream<List<Player>> get playersStream =>
-      _playersController.stream;
+  Stream<List<Player>> get playersStream => _playersController.stream;
 
-  Stream<String> get statusStream =>
-      _statusController.stream;
+  Stream<String> get statusStream => _statusController.stream;
 
-  Stream<void> get gameStartedStream =>
-      _gameStartedController.stream;
+  Stream<void> get gameStartedStream => _gameStartedController.stream;
 
-  List<Player> get latestPlayers =>
-      List.unmodifiable(_latestPlayers);
+  List<Player> get latestPlayers => List.unmodifiable(_latestPlayers);
 
   bool get isConnected => _channel != null;
 
@@ -42,9 +43,7 @@ class PlayerClient {
   }) async {
     await disconnect();
 
-    final url = Uri.parse(
-      'ws://$host:4040/ws',
-    );
+    final url = Uri.parse('ws://$host:4040/ws');
 
     _statusController.add('Connecting...');
 
@@ -68,12 +67,9 @@ class PlayerClient {
 
           _channel = null;
 
-          if (_joinCompleter != null &&
-              !_joinCompleter!.isCompleted) {
+          if (_joinCompleter != null && !_joinCompleter!.isCompleted) {
             _joinCompleter!.completeError(
-              Exception(
-                'Host closed the connection before joining.',
-              ),
+              Exception('Host closed the connection before joining.'),
             );
           }
 
@@ -84,23 +80,16 @@ class PlayerClient {
 
           _channel = null;
 
-          if (_joinCompleter != null &&
-              !_joinCompleter!.isCompleted) {
+          if (_joinCompleter != null && !_joinCompleter!.isCompleted) {
             _joinCompleter!.completeError(error);
           }
 
-          _statusController.add(
-            'Connection error: $error',
-          );
+          _statusController.add('Connection error: $error');
         },
         cancelOnError: false,
       );
 
-      _send({
-        'type': 'join',
-        'id': playerId,
-        'name': playerName,
-      });
+      _send({'type': 'join', 'id': playerId, 'name': playerName});
 
       print('Join request sent');
 
@@ -115,9 +104,7 @@ class PlayerClient {
 
       _channel = null;
 
-      _statusController.add(
-        'Connection failed',
-      );
+      _statusController.add('Connection failed');
 
       rethrow;
     }
@@ -125,9 +112,7 @@ class PlayerClient {
 
   void _handleMessage(dynamic data) {
     try {
-      final message = jsonDecode(
-        data.toString(),
-      );
+      final message = jsonDecode(data.toString());
 
       final type = message['type'];
 
@@ -146,65 +131,50 @@ class PlayerClient {
           _gameStartedController.add(null);
           break;
 
-        default:
-          print(
-            'Unknown server message type: $type',
+        case 'game_state':
+          final state = GameState.fromJson(
+            Map<String, dynamic>.from(message['state']),
           );
+
+          _gameStateController.add(state);
+          break;
+
+        default:
+          print('Unknown server message type: $type');
       }
     } catch (e) {
-      print(
-        'Invalid server message: $e',
-      );
+      print('Invalid server message: $e');
     }
   }
 
-  void _handleJoined(
-    Map<String, dynamic> message,
-  ) {
-    final roomCode =
-        message['roomCode']?.toString() ?? '';
+  void _handleJoined(Map<String, dynamic> message) {
+    final roomCode = message['roomCode']?.toString() ?? '';
 
-    print(
-      'JOIN CONFIRMED. Room: $roomCode',
-    );
+    print('JOIN CONFIRMED. Room: $roomCode');
 
-    if (_joinCompleter != null &&
-        !_joinCompleter!.isCompleted) {
+    if (_joinCompleter != null && !_joinCompleter!.isCompleted) {
       _joinCompleter!.complete();
     }
   }
 
-  void _handlePlayers(
-    Map<String, dynamic> message,
-  ) {
-    final rawPlayers =
-        message['players'] as List<dynamic>? ?? [];
+  void _handlePlayers(Map<String, dynamic> message) {
+    final rawPlayers = message['players'] as List<dynamic>? ?? [];
 
     final players = rawPlayers
-        .map(
-          (json) => Player.fromJson(
-            Map<String, dynamic>.from(json),
-          ),
-        )
+        .map((json) => Player.fromJson(Map<String, dynamic>.from(json)))
         .toList();
 
     _latestPlayers = players;
 
-    _playersController.add(
-      List.unmodifiable(_latestPlayers),
-    );
+    _playersController.add(List.unmodifiable(_latestPlayers));
   }
 
-  void _send(
-    Map<String, dynamic> message,
-  ) {
+  void _send(Map<String, dynamic> message) {
     if (_channel == null) {
       return;
     }
 
-    _channel!.sink.add(
-      jsonEncode(message),
-    );
+    _channel!.sink.add(jsonEncode(message));
   }
 
   Future<void> disconnect() async {
@@ -212,9 +182,7 @@ class PlayerClient {
 
     if (_channel != null) {
       try {
-        _send({
-          'type': 'leave',
-        });
+        _send({'type': 'leave'});
 
         await _channel!.sink.close();
       } catch (_) {}
@@ -229,5 +197,6 @@ class PlayerClient {
     _playersController.close();
     _statusController.close();
     _gameStartedController.close();
+    _gameStateController.close();
   }
 }
