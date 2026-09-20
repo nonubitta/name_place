@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/player.dart';
 import '../network/host_server.dart';
+import 'game_page.dart';
 
 class HostPage extends StatefulWidget {
   const HostPage({super.key});
@@ -15,55 +16,86 @@ class HostPage extends StatefulWidget {
 class _HostPageState extends State<HostPage> {
   final HostServer _server = HostServer();
 
-  StreamSubscription<List<Player>>? _subscription;
+  final TextEditingController _nameController =
+      TextEditingController(text: 'Host');
+
+  StreamSubscription<List<Player>>? _playersSubscription;
+  StreamSubscription<void>? _gameSubscription;
 
   List<Player> _players = [];
-  String? _serverAddress;
+
   bool _starting = true;
 
   @override
   void initState() {
     super.initState();
-    _startServer();
+
+    _startHost();
   }
 
-  Future<void> _startServer() async {
-    try {
-      final address = await _server.start();
+  Future<void> _startHost() async {
+    await _server.start(
+      hostName: _nameController.text.trim(),
+    );
 
-      _subscription = _server.playersStream.listen((players) {
+    _playersSubscription = _server.playersStream.listen(
+      (players) {
         if (!mounted) return;
 
         setState(() {
           _players = players;
         });
-      });
+      },
+    );
 
-      if (!mounted) return;
+    _gameSubscription = _server.gameStartedStream.listen(
+      (_) {
+        if (!mounted) return;
 
-      setState(() {
-        _serverAddress = address;
-        _starting = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GamePage(
+              isHost: true,
+              players: _players,
+            ),
+          ),
+        );
+      },
+    );
 
-      setState(() {
-        _starting = false;
-      });
+    if (!mounted) return;
 
+    setState(() {
+      _starting = false;
+    });
+  }
+
+  void _startGame() {
+    if (_players.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not start server: $e'),
+        const SnackBar(
+          content: Text(
+            'Waiting for at least one player.',
+          ),
         ),
       );
+
+      return;
     }
+
+    _server.startGame();
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    _playersSubscription?.cancel();
+    _gameSubscription?.cancel();
+
+    _nameController.dispose();
+
     _server.dispose();
+
     super.dispose();
   }
 
@@ -71,112 +103,148 @@ class _HostPageState extends State<HostPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Host Game'),
+        title: const Text('Game Lobby'),
       ),
       body: _starting
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(
-                    Icons.wifi_tethering,
-                    size: 70,
-                  ),
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.stretch,
+                  children: [
+                    _buildRoomCard(),
 
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
-                  const Text(
-                    'Host is ready',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  const Text(
-                    'Make sure all phones are connected to the same Wi-Fi network.',
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  if (_serverAddress != null)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Server Address',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SelectableText(
-                              _serverAddress!,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+                    Text(
+                      'Players (${_players.length})',
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 10),
 
-                  Text(
-                    '${_players.length} connected',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: _players.isEmpty
+                          ? _buildWaiting()
+                          : _buildPlayers(),
                     ),
-                  ),
 
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-                  Expanded(
-                    child: _players.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'Waiting for players...',
-                              style: TextStyle(
-                                fontSize: 18,
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: _players.length,
-                            itemBuilder: (context, index) {
-                              final player = _players[index];
-
-                              return Card(
-                                child: ListTile(
-                                  leading: const CircleAvatar(
-                                    child: Icon(Icons.person),
-                                  ),
-                                  title: Text(player.name),
-                                  subtitle: Text(player.id),
-                                  trailing: const Icon(
-                                    Icons.check_circle,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
+                    FilledButton.icon(
+                      onPressed: _startGame,
+                      icon: const Icon(
+                        Icons.play_arrow,
+                      ),
+                      label: const Text(
+                        'START GAME',
+                      ),
+                      style: FilledButton.styleFrom(
+                        minimumSize:
+                            const Size.fromHeight(52),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+    );
+  }
+
+  Widget _buildRoomCard() {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const Text(
+              'ROOM CODE',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              _server.roomCode,
+              style: const TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 8,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            const Text(
+              'Players can find this game automatically.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWaiting() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 60,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Waiting for players...',
+            style: TextStyle(
+              fontSize: 18,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayers() {
+    return ListView.builder(
+      itemCount: _players.length,
+      itemBuilder: (context, index) {
+        final player = _players[index];
+
+        return Card(
+          child: ListTile(
+            leading: CircleAvatar(
+              child: Text(
+                player.name.isEmpty
+                    ? '?'
+                    : player.name[0].toUpperCase(),
+              ),
+            ),
+            title: Text(
+              player.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: const Icon(
+              Icons.check_circle,
+            ),
+          ),
+        );
+      },
     );
   }
 }

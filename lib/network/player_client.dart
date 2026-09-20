@@ -3,19 +3,30 @@ import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../models/player.dart';
+
 class PlayerClient {
   WebSocketChannel? _channel;
 
-  final StreamController<List<Map<String, dynamic>>> _playersController =
-      StreamController<List<Map<String, dynamic>>>.broadcast();
+  final StreamController<List<Player>> _playersController =
+      StreamController<List<Player>>.broadcast();
 
   final StreamController<String> _statusController =
       StreamController<String>.broadcast();
 
-  Stream<List<Map<String, dynamic>>> get playersStream =>
+  final StreamController<void> _gameStartedController =
+      StreamController<void>.broadcast();
+
+  Stream<List<Player>> get playersStream =>
       _playersController.stream;
 
-  Stream<String> get statusStream => _statusController.stream;
+  Stream<String> get statusStream =>
+      _statusController.stream;
+
+  Stream<void> get gameStartedStream =>
+      _gameStartedController.stream;
+
+  bool get isConnected => _channel != null;
 
   Future<void> connect({
     required String host,
@@ -24,7 +35,9 @@ class PlayerClient {
   }) async {
     await disconnect();
 
-    final url = Uri.parse('ws://$host:4040/ws');
+    final url = Uri.parse(
+      'ws://$host:4040/ws',
+    );
 
     _statusController.add('Connecting...');
 
@@ -36,13 +49,13 @@ class PlayerClient {
       _statusController.add('Connected');
 
       _channel!.stream.listen(
-        (data) {
-          _handleMessage(data);
-        },
+        _handleMessage,
         onDone: () {
+          _channel = null;
           _statusController.add('Disconnected');
         },
         onError: (error) {
+          _channel = null;
           _statusController.add('Connection error');
         },
       );
@@ -53,6 +66,7 @@ class PlayerClient {
         'name': playerName,
       });
     } catch (e) {
+      _channel = null;
       _statusController.add('Unable to connect');
       rethrow;
     }
@@ -62,15 +76,30 @@ class PlayerClient {
     try {
       final message = jsonDecode(data.toString());
 
-      if (message['type'] == 'joined') {
-        _statusController.add('Joined game');
-      }
+      final type = message['type'];
 
-      if (message['type'] == 'players') {
-        final players =
-            List<Map<String, dynamic>>.from(message['players'] ?? []);
+      switch (type) {
+        case 'joined':
+          _statusController.add('Joined game');
+          break;
 
-        _playersController.add(players);
+        case 'players':
+          final rawPlayers = message['players'] as List<dynamic>;
+
+          final players = rawPlayers
+              .map(
+                (json) => Player.fromJson(
+                  Map<String, dynamic>.from(json),
+                ),
+              )
+              .toList();
+
+          _playersController.add(players);
+          break;
+
+        case 'start_game':
+          _gameStartedController.add(null);
+          break;
       }
     } catch (e) {
       print('Invalid server message: $e');
@@ -78,20 +107,30 @@ class PlayerClient {
   }
 
   void _send(Map<String, dynamic> message) {
-    _channel?.sink.add(jsonEncode(message));
+    _channel?.sink.add(
+      jsonEncode(message),
+    );
   }
 
   Future<void> disconnect() async {
-    try {
-      await _channel?.sink.close();
-    } catch (_) {}
+    if (_channel != null) {
+      try {
+        _send({
+          'type': 'leave',
+        });
+
+        await _channel!.sink.close();
+      } catch (_) {}
+    }
 
     _channel = null;
   }
 
   void dispose() {
     disconnect();
+
     _playersController.close();
     _statusController.close();
+    _gameStartedController.close();
   }
 }

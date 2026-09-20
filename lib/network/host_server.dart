@@ -1,11 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import '../models/player.dart';
+import 'discovery_service.dart';
 
 class HostServer {
+  static const int webSocketPort = 4040;
+
   HttpServer? _server;
+
+  final DiscoveryService _discovery = DiscoveryService();
 
   final Map<String, WebSocket> _connections = {};
   final Map<String, Player> _players = {};
@@ -13,47 +19,58 @@ class HostServer {
   final StreamController<List<Player>> _playersController =
       StreamController<List<Player>>.broadcast();
 
+  final StreamController<void> _gameStartedController =
+      StreamController<void>.broadcast();
+
   Stream<List<Player>> get playersStream => _playersController.stream;
 
-  int get playerCount => _players.length;
+  Stream<void> get gameStartedStream => _gameStartedController.stream;
 
-  Future<String> start() async {
+  String get roomCode => _roomCode;
+
+  String _roomCode = '';
+
+  String _hostName = 'Host';
+
+  bool _gameStarted = false;
+
+  bool get gameStarted => _gameStarted;
+
+  Future<void> start({
+    required String hostName,
+  }) async {
     await stop();
+
+    _hostName = hostName;
+    _roomCode = _generateRoomCode();
 
     _server = await HttpServer.bind(
       InternetAddress.anyIPv4,
-      4040,
+      webSocketPort,
       shared: true,
     );
 
     _server!.listen(_handleRequest);
 
-    final addresses = await _getLocalAddresses();
-
-    if (addresses.isEmpty) {
-      return 'http://localhost:4040';
-    }
-
-    return 'ws://${addresses.first}:4040';
-  }
-
-  Future<List<String>> _getLocalAddresses() async {
-    final interfaces = await NetworkInterface.list(
-      includeLoopback: false,
-      type: InternetAddressType.IPv4,
+    await _discovery.startHost(
+      roomCode: _roomCode,
+      hostName: _hostName,
+      playerCount: _players.length,
     );
 
-    final addresses = <String>[];
+    print('Host started');
+    print('Room: $_roomCode');
+  }
 
-    for (final interface in interfaces) {
-      for (final address in interface.addresses) {
-        if (!address.isLoopback) {
-          addresses.add(address.address);
-        }
-      }
-    }
+  String _generateRoomCode() {
+    const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-    return addresses;
+    final random = Random.secure();
+
+    return List.generate(
+      4,
+      (_) => characters[random.nextInt(characters.length)],
+    ).join();
   }
 
   void _handleRequest(HttpRequest request) {
@@ -62,10 +79,13 @@ class HostServer {
         ..statusCode = HttpStatus.notFound
         ..write('Not Found')
         ..close();
+
       return;
     }
 
-    WebSocketTransformer.upgrade(request).then(_handleWebSocket);
+    WebSocketTransformer.upgrade(request).then(
+      _handleWebSocket,
+    );
   }
 
   void _handleWebSocket(WebSocket socket) {
@@ -74,74 +94,80 @@ class HostServer {
     socket.listen(
       (data) {
         try {
-          final message = jsonDecode(data as String);
+          final message = jsonDecode(data.toString());
 
           final type = message['type'];
 
-          if (type == 'join') {
-            playerId = message['id']?.toString();
+          switch (type) {
+            case 'join':
+              playerId = message['id']?.toString();
 
-            if (playerId == null) {
-              socket.close();
-              return;
-            }
+              if (playerId == null || playerId!.isEmpty) {
+                socket.close();
+                return;
+              }
 
-            final player = Player(
-              id: playerId!,
-              name: message['name']?.toString() ?? 'Player',
-              address: 'Connected',
-            );
+              final player = Player(
+                id: playerId!,
+                name: message['name']?.toString() ?? 'Player',
+              );
 
-            _connections[playerId!] = socket;
-            _players[playerId!] = player;
+              _connections[playerId!] = socket;
+              _players[playerId!] = player;
 
-            _send(
-              socket,
-              {
-                'type': 'joined',
-                'id': player.id,
-              },
-            );
+              _send(
+                socket,
+                {
+                  'type': 'joined',
+                  'id': player.id,
+                  'roomCode': _roomCode,
+                },
+              );
 
-            _broadcastPlayers();
+              _broadcastPlayers();
 
-            print('Player connected: ${player.name}');
+              print('Player connected: ${player.name}');
+              break;
+
+            case 'leave':
+              _removePlayer(playerId);
+              playerId = null;
+              break;
           }
         } catch (e) {
           print('Invalid message: $e');
         }
       },
       onDone: () {
-        if (playerId != null) {
-          _connections.remove(playerId);
-          _players.remove(playerId);
-
-          _broadcastPlayers();
-
-          print('Player disconnected: $playerId');
-        }
+        _removePlayer(playerId);
       },
       onError: (error) {
-        if (playerId != null) {
-          _connections.remove(playerId);
-          _players.remove(playerId);
-
-          _broadcastPlayers();
-        }
-
+        _removePlayer(playerId);
         print('WebSocket error: $error');
       },
       cancelOnError: false,
     );
   }
 
+  void _removePlayer(String? playerId) {
+    if (playerId == null) {
+      return;
+    }
+
+    final player = _players.remove(playerId);
+    _connections.remove(playerId);
+
+    if (player != null) {
+      print('Player disconnected: ${player.name}');
+    }
+
+    _broadcastPlayers();
+  }
+
   void _broadcastPlayers() {
     final players = _players.values
         .map(
-          (player) => {
-            'id': player.id,
-            'name': player.name,
-          },
+          (player) => player.toJson(),
         )
         .toList();
 
@@ -157,18 +183,55 @@ class HostServer {
     }
 
     _playersController.add(
-      List.unmodifiable(_players.values),
+      List.unmodifiable(
+        _players.values,
+      ),
     );
+
+    _updateDiscovery();
+  }
+
+  void _updateDiscovery() {
+    _discovery.startHost(
+      roomCode: _roomCode,
+      hostName: _hostName,
+      playerCount: _players.length,
+    );
+  }
+
+  void startGame() {
+    if (_gameStarted) {
+      return;
+    }
+
+    _gameStarted = true;
+
+    final message = jsonEncode({
+      'type': 'start_game',
+      'roomCode': _roomCode,
+    });
+
+    for (final socket in _connections.values) {
+      try {
+        socket.add(message);
+      } catch (_) {}
+    }
+
+    _gameStartedController.add(null);
   }
 
   void _send(
     WebSocket socket,
     Map<String, dynamic> message,
   ) {
-    socket.add(jsonEncode(message));
+    socket.add(
+      jsonEncode(message),
+    );
   }
 
   Future<void> stop() async {
+    await _discovery.stop();
+
     for (final socket in _connections.values) {
       try {
         await socket.close();
@@ -181,11 +244,17 @@ class HostServer {
     await _server?.close(force: true);
     _server = null;
 
+    _gameStarted = false;
+    _roomCode = '';
+
     _playersController.add(const []);
   }
 
   void dispose() {
+    _discovery.dispose();
     _playersController.close();
+    _gameStartedController.close();
+
     stop();
   }
 }
