@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:name_place/models/player_answers.dart';
+
 import '../models/game_state.dart';
 import '../models/player.dart';
 import 'discovery_service.dart';
@@ -17,7 +19,10 @@ class HostServer {
 
   final Map<String, WebSocket> _connections = {};
   final Map<String, Player> _players = {};
+  final StreamController<PlayerAnswers> _answersController =
+      StreamController<PlayerAnswers>.broadcast();
 
+  final Map<String, PlayerAnswers> _submittedAnswers = {};
   final StreamController<List<Player>> _playersController =
       StreamController<List<Player>>.broadcast();
 
@@ -28,6 +33,10 @@ class HostServer {
 
   Stream<void> get gameStartedStream => _gameStartedController.stream;
 
+  Stream<PlayerAnswers> get answersStream => _answersController.stream;
+
+  Map<String, PlayerAnswers> get submittedAnswers =>
+      Map.unmodifiable(_submittedAnswers);
   String get roomCode => _roomCode;
 
   String _roomCode = '';
@@ -185,7 +194,6 @@ class HostServer {
     _updateDiscovery();
   }
 
-
   void _updateDiscovery() {
     _discovery.startHost(
       roomCode: _roomCode,
@@ -194,35 +202,40 @@ class HostServer {
     );
   }
 
-GameState startFirstRound() {
-  final random = Random.secure();
+  GameState startFirstRound({List<String>? categories}) {
+    final random = Random.secure();
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    final letter = letters[random.nextInt(letters.length)];
 
-  final letter =
-      letters[random.nextInt(letters.length)];
+    final selectedCategories = categories == null || categories.isEmpty
+        ? <String>['Name', 'Place', 'Animal', 'Thing']
+        : List<String>.from(categories);
 
-  final state = GameState(
-    phase: GamePhase.playing,
-    letter: letter,
-    round: 1,
-    timeRemaining: 30,
-  );
+    _submittedAnswers.clear();
 
-  broadcastGameState(state);
+    final state = GameState(
+      phase: GamePhase.playing,
+      letter: letter,
+      round: 1,
+      timeRemaining: 30,
+      categories: selectedCategories,
+    );
 
-  return state;
-}
+    broadcastGameState(state);
 
-GameState? startGame() {
-  if (_gameStarted) {
-    return null;
+    return state;
   }
 
-  _gameStarted = true;
+  GameState? startGame({List<String>? categories}) {
+    if (_gameStarted) {
+      return null;
+    }
 
-  return startFirstRound();
-}
+    _gameStarted = true;
+
+    return startFirstRound(categories: categories);
+  }
 
   void _send(WebSocket socket, Map<String, dynamic> message) {
     socket.add(jsonEncode(message));
