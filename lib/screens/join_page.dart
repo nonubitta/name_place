@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:math';
-
+import 'settings_page.dart';
 import 'package:flutter/material.dart';
-
+import '../services/app_preferences.dart';
 import '../models/game_room.dart';
 import '../network/discovery_service.dart';
 import '../network/player_client.dart';
@@ -35,8 +35,20 @@ class _JoinPageState extends State<JoinPage> {
   @override
   void initState() {
     super.initState();
-
+    _loadSavedName();
     _startDiscovery();
+  }
+
+  Future<void> _loadSavedName() async {
+    final savedName = await AppPreferences.getPlayerName();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (savedName.isNotEmpty) {
+      _nameController.text = savedName;
+    }
   }
 
   Future<void> _startDiscovery() async {
@@ -83,6 +95,8 @@ class _JoinPageState extends State<JoinPage> {
     if (_connecting) {
       return;
     }
+
+    await AppPreferences.setPlayerName(name);
 
     setState(() {
       _connecting = true;
@@ -169,7 +183,23 @@ class _JoinPageState extends State<JoinPage> {
     final rooms = _rooms.values.toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Find Game')),
+      appBar: AppBar(
+        title: const Text('Find Game'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: _connecting
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsPage()),
+                    );
+                  },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),

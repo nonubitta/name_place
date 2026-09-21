@@ -1,5 +1,6 @@
 import 'dart:async';
-
+import 'scoreboard_page.dart';
+import 'settings_page.dart';
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import 'game_round_page.dart';
@@ -163,6 +164,18 @@ class _ResultsPageState extends State<ResultsPage> {
       appBar: AppBar(
         title: Text('Round ${widget.round} Results'),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            tooltip: 'Scoreboard',
+            icon: const Icon(Icons.leaderboard_outlined),
+            onPressed: _openScoreboard,
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: _openSettings,
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -196,6 +209,31 @@ class _ResultsPageState extends State<ResultsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  void _openScoreboard() {
+    final totalScores = <String, int>{};
+
+    if (widget.isHost && widget.hostServer != null) {
+      totalScores.addAll(widget.hostServer!.totalScores);
+    } else if (!widget.isHost && widget.playerClient != null) {
+      totalScores.addAll(widget.playerClient!.totalScores);
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ScoreboardPage(players: widget.players, totalScores: totalScores),
+      ),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
     );
   }
 
