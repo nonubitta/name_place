@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/app_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({
-    super.key,
-  });
+  const SettingsPage({super.key});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -13,7 +11,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _nameController;
-
+  int _roundDuration = AppPreferences.defaultRoundDuration;
   List<String> _categories = [];
   bool _loading = true;
 
@@ -29,6 +27,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadSettings() async {
     final name = await AppPreferences.getPlayerName();
     final categories = await AppPreferences.getCategories();
+    final roundDuration = await AppPreferences.getRoundDuration();
 
     if (!mounted) {
       return;
@@ -37,6 +36,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _nameController.text = name;
       _categories = categories;
+      _roundDuration = roundDuration;
       _loading = false;
     });
   }
@@ -63,9 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _addCategory() async {
-    final category = await _showCategoryDialog(
-      title: 'Add Category',
-    );
+    final category = await _showCategoryDialog(title: 'Add Category');
 
     if (category == null) {
       return;
@@ -99,11 +97,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _deleteCategory(int index) async {
     if (_categories.length == 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'You need at least one category.',
-          ),
-        ),
+        const SnackBar(content: Text('You need at least one category.')),
       );
 
       return;
@@ -116,9 +110,7 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete Category?'),
-          content: Text(
-            'Remove "$category" from your game categories?',
-          ),
+          content: Text('Remove "$category" from your game categories?'),
           actions: [
             TextButton(
               onPressed: () {
@@ -186,10 +178,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     setState(() {
-      _categories =
-          List<String>.from(
-        AppPreferences.defaultCategories,
-      );
+      _categories = List<String>.from(AppPreferences.defaultCategories);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -205,9 +194,7 @@ class _SettingsPageState extends State<SettingsPage> {
     String initialValue = '',
     int? editingIndex,
   }) async {
-    final controller = TextEditingController(
-      text: initialValue,
-    );
+    final controller = TextEditingController(text: initialValue);
 
     String? error;
 
@@ -221,14 +208,12 @@ class _SettingsPageState extends State<SettingsPage> {
               content: TextField(
                 controller: controller,
                 autofocus: true,
-                textCapitalization:
-                    TextCapitalization.words,
+                textCapitalization: TextCapitalization.words,
                 maxLength: 30,
                 decoration: InputDecoration(
                   labelText: 'Category',
                   hintText: 'e.g. Food',
-                  prefixIcon:
-                      const Icon(Icons.category_outlined),
+                  prefixIcon: const Icon(Icons.category_outlined),
                   errorText: error,
                 ),
                 onChanged: (_) {
@@ -239,21 +224,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   }
                 },
                 onSubmitted: (_) {
-                  final value =
-                      controller.text.trim();
+                  final value = controller.text.trim();
 
-                  if (_validateCategory(
-                    value,
-                    editingIndex,
-                  )) {
+                  if (_validateCategory(value, editingIndex)) {
                     Navigator.pop(context, value);
                   } else {
                     setDialogState(() {
-                      error =
-                          _categoryError(
-                        value,
-                        editingIndex,
-                      );
+                      error = _categoryError(value, editingIndex);
                     });
                   }
                 },
@@ -267,10 +244,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return result;
   }
 
-  bool _validateCategory(
-    String value,
-    int? editingIndex,
-  ) {
+  bool _validateCategory(String value, int? editingIndex) {
     if (value.isEmpty) {
       return false;
     }
@@ -282,8 +256,7 @@ class _SettingsPageState extends State<SettingsPage> {
         continue;
       }
 
-      if (_categories[i].trim().toLowerCase() ==
-          normalized) {
+      if (_categories[i].trim().toLowerCase() == normalized) {
         return false;
       }
     }
@@ -291,10 +264,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return true;
   }
 
-  String _categoryError(
-    String value,
-    int? editingIndex,
-  ) {
+  String _categoryError(String value, int? editingIndex) {
     if (value.isEmpty) {
       return 'Enter a category name';
     }
@@ -306,8 +276,7 @@ class _SettingsPageState extends State<SettingsPage> {
         continue;
       }
 
-      if (_categories[i].trim().toLowerCase() ==
-          normalized) {
+      if (_categories[i].trim().toLowerCase() == normalized) {
         return 'This category already exists';
       }
     }
@@ -315,16 +284,12 @@ class _SettingsPageState extends State<SettingsPage> {
     return 'Invalid category';
   }
 
-  Future<void> _reorderCategories(
-    int oldIndex,
-    int newIndex,
-  ) async {
+  Future<void> _reorderCategories(int oldIndex, int newIndex) async {
     if (oldIndex < newIndex) {
       newIndex -= 1;
     }
 
-    final category =
-        _categories.removeAt(oldIndex);
+    final category = _categories.removeAt(oldIndex);
 
     _categories.insert(newIndex, category);
 
@@ -347,19 +312,46 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                32,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               children: [
                 _buildPlayerSection(),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.timer_outlined),
+                    title: const Text('Time / Round'),
+                    subtitle: Text('$_roundDuration seconds'),
+                    trailing: DropdownButton<int>(
+                      value:
+                          AppPreferences.roundDurationOptions.contains(
+                            _roundDuration,
+                          )
+                          ? _roundDuration
+                          : AppPreferences.defaultRoundDuration,
+                      underline: const SizedBox(),
+                      items: AppPreferences.roundDurationOptions
+                          .map(
+                            (seconds) => DropdownMenuItem<int>(
+                              value: seconds,
+                              child: Text('$seconds sec'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) async {
+                        if (value == null) {
+                          return;
+                        }
 
+                        setState(() {
+                          _roundDuration = value;
+                        });
+
+                        await AppPreferences.setRoundDuration(value);
+                      },
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
 
                 _buildCategoriesSection(),
@@ -375,13 +367,11 @@ class _SettingsPageState extends State<SettingsPage> {
       subtitle: 'Your name shown to other players',
       child: TextField(
         controller: _nameController,
-        textCapitalization:
-            TextCapitalization.words,
+        textCapitalization: TextCapitalization.words,
         decoration: const InputDecoration(
           labelText: 'Name',
           hintText: 'Enter your name',
-          prefixIcon:
-              Icon(Icons.person_outline),
+          prefixIcon: Icon(Icons.person_outline),
           border: OutlineInputBorder(),
         ),
         onSubmitted: (_) => _saveName(),
@@ -393,8 +383,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return _buildSectionCard(
       icon: Icons.category_outlined,
       title: 'Game Categories',
-      subtitle:
-          'Choose and arrange the categories used in each round.',
+      subtitle: 'Choose and arrange the categories used in each round.',
       trailing: IconButton(
         tooltip: 'Reset to defaults',
         icon: const Icon(Icons.restart_alt),
@@ -418,8 +407,7 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: const Icon(Icons.add),
               label: const Text('ADD CATEGORY'),
               style: OutlinedButton.styleFrom(
-                minimumSize:
-                    const Size.fromHeight(48),
+                minimumSize: const Size.fromHeight(48),
               ),
             ),
           ),
@@ -431,8 +419,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildCategoryList() {
     return ReorderableListView.builder(
       shrinkWrap: true,
-      physics:
-          const NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: _categories.length,
       onReorder: _reorderCategories,
       buildDefaultDragHandles: false,
@@ -440,56 +427,34 @@ class _SettingsPageState extends State<SettingsPage> {
         final category = _categories[index];
 
         return Container(
-          key: ValueKey(
-            '$category-$index',
-          ),
-          margin: const EdgeInsets.only(
-            bottom: 8,
-          ),
+          key: ValueKey('$category-$index'),
+          margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
-            border: Border.all(
-              color:
-                  Theme.of(context)
-                      .dividerColor,
-            ),
-            borderRadius:
-                BorderRadius.circular(12),
+            border: Border.all(color: Theme.of(context).dividerColor),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: ListTile(
             leading: ReorderableDragStartListener(
               index: index,
-              child: const Icon(
-                Icons.drag_indicator,
-              ),
+              child: const Icon(Icons.drag_indicator),
             ),
             title: Text(
               category,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            subtitle: Text(
-              'Category ${index + 1}',
-            ),
+            subtitle: Text('Category ${index + 1}'),
             trailing: Row(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   tooltip: 'Edit',
-                  icon: const Icon(
-                    Icons.edit_outlined,
-                  ),
-                  onPressed: () =>
-                      _editCategory(index),
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _editCategory(index),
                 ),
                 IconButton(
                   tooltip: 'Delete',
-                  icon: const Icon(
-                    Icons.delete_outline,
-                  ),
-                  onPressed: () =>
-                      _deleteCategory(index),
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => _deleteCategory(index),
                 ),
               ],
             ),
@@ -503,26 +468,14 @@ class _SettingsPageState extends State<SettingsPage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(12),
-        border: Border.all(
-          color:
-              Theme.of(context).dividerColor,
-        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: const Column(
         children: [
-          Icon(
-            Icons.category_outlined,
-            size: 40,
-          ),
+          Icon(Icons.category_outlined, size: 40),
           SizedBox(height: 8),
-          Text(
-            'No categories',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text('No categories', style: TextStyle(fontWeight: FontWeight.bold)),
           SizedBox(height: 4),
           Text(
             'Add at least one category to play.',
@@ -546,8 +499,7 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
@@ -555,42 +507,30 @@ class _SettingsPageState extends State<SettingsPage> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primaryContainer,
-                    borderRadius:
-                        BorderRadius.circular(10),
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
                 ),
-                if (trailing != null)
-                  trailing,
+                if (trailing != null) trailing,
               ],
             ),
             const SizedBox(height: 16),

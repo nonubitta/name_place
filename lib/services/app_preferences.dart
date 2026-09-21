@@ -3,6 +3,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppPreferences {
   static const String _playerNameKey = 'player_name';
   static const String _categoriesKey = 'game_categories';
+  static const String _roundDurationKey = 'round_duration';
+
+  static const int defaultRoundDuration = 30;
+
+  static const List<int> roundDurationOptions = [
+    15,
+    30,
+    45,
+    60,
+    90,
+    120,
+  ];
 
   static const List<String> defaultCategories = [
     'Name',
@@ -18,7 +30,9 @@ class AppPreferences {
     return preferences.getString(_playerNameKey) ?? '';
   }
 
-  static Future<void> setPlayerName(String name) async {
+  static Future<void> setPlayerName(
+    String name,
+  ) async {
     final preferences =
         await SharedPreferences.getInstance();
 
@@ -39,15 +53,22 @@ class AppPreferences {
         await SharedPreferences.getInstance();
 
     final categories =
-        preferences.getStringList(_categoriesKey);
+        preferences.getStringList(
+      _categoriesKey,
+    );
 
-    if (categories == null || categories.isEmpty) {
-      return List<String>.from(defaultCategories);
+    if (categories == null ||
+        categories.isEmpty) {
+      return List<String>.from(
+        defaultCategories,
+      );
     }
 
     return categories
         .map((category) => category.trim())
-        .where((category) => category.isNotEmpty)
+        .where(
+          (category) => category.isNotEmpty,
+        )
         .toList();
   }
 
@@ -59,7 +80,9 @@ class AppPreferences {
 
     final cleaned = categories
         .map((category) => category.trim())
-        .where((category) => category.isNotEmpty)
+        .where(
+          (category) => category.isNotEmpty,
+        )
         .toList();
 
     if (cleaned.isEmpty) {
@@ -77,6 +100,57 @@ class AppPreferences {
     final preferences =
         await SharedPreferences.getInstance();
 
-    await preferences.remove(_categoriesKey);
+    await preferences.remove(
+      _categoriesKey,
+    );
+  }
+
+  // --------------------------------------------------
+  // Time / Round
+  // --------------------------------------------------
+
+  static Future<int> getRoundDuration() async {
+    final preferences =
+        await SharedPreferences.getInstance();
+
+    final value = preferences.getInt(
+      _roundDurationKey,
+    );
+
+    if (value == null ||
+        value <= 0) {
+      return defaultRoundDuration;
+    }
+
+    return value;
+  }
+
+  static Future<void> setRoundDuration(
+    int seconds,
+  ) async {
+    final preferences =
+        await SharedPreferences.getInstance();
+
+    if (seconds <= 0) {
+      await preferences.setInt(
+        _roundDurationKey,
+        defaultRoundDuration,
+      );
+      return;
+    }
+
+    await preferences.setInt(
+      _roundDurationKey,
+      seconds,
+    );
+  }
+
+  static Future<void> resetRoundDuration() async {
+    final preferences =
+        await SharedPreferences.getInstance();
+
+    await preferences.remove(
+      _roundDurationKey,
+    );
   }
 }
