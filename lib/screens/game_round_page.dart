@@ -45,6 +45,7 @@ class _GameRoundPageState extends State<GameRoundPage> {
 
   StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
   StreamSubscription<void>? _gameEndedSubscription;
+  StreamSubscription<Map<String, dynamic>>? _playerActivitySubscription;
   final Map<String, TextEditingController> _controllers = {};
 
   final Set<String> _submittedPlayerIds = {};
@@ -123,6 +124,38 @@ class _GameRoundPageState extends State<GameRoundPage> {
         );
       });
     }
+
+    if (widget.isHost && widget.hostServer != null) {
+      _playerActivitySubscription =
+          widget.hostServer!.playerActivityStream.listen(_onPlayerActivity);
+    } else if (!widget.isHost && widget.playerClient != null) {
+      _playerActivitySubscription =
+          widget.playerClient!.playerActivityStream.listen(_onPlayerActivity);
+    }
+  }
+
+  void _onPlayerActivity(Map<String, dynamic> message) {
+    if (!mounted) {
+      return;
+    }
+
+    final playerName = message['playerName']?.toString() ?? 'Player';
+    final type = message['type']?.toString();
+    final minimized = type == 'player_minimized';
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            minimized
+                ? '⚠️ $playerName left the game app'
+                : '✓ $playerName returned to the game',
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 
   void _openScoreboard() {
@@ -386,6 +419,7 @@ class _GameRoundPageState extends State<GameRoundPage> {
     _answersSubscription?.cancel();
     _submissionSubscription?.cancel();
     _resultsSubscription?.cancel();
+    _playerActivitySubscription?.cancel();
 
     for (final controller in _controllers.values) {
       controller.dispose();

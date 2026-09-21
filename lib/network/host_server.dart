@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/widgets.dart';
+
 import 'package:name_place/models/player_answers.dart';
 import '../services/game_history_service.dart';
 import '../models/player_score.dart';
@@ -10,7 +12,7 @@ import '../models/game_state.dart';
 import '../models/player.dart';
 import 'discovery_service.dart';
 
-class HostServer {
+class HostServer with WidgetsBindingObserver {
   static const int webSocketPort = 4040;
 
   HttpServer? _server;
@@ -34,7 +36,13 @@ class HostServer {
   final StreamController<Map<String, dynamic>> _resultsController =
       StreamController<Map<String, dynamic>>.broadcast();
 
+  final StreamController<Map<String, dynamic>> _playerActivityController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
   Stream<Map<String, dynamic>> get resultsStream => _resultsController.stream;
+
+  Stream<Map<String, dynamic>> get playerActivityStream =>
+      _playerActivityController.stream;
 
   Stream<List<Player>> get playersStream => _playersController.stream;
 
@@ -73,6 +81,10 @@ class HostServer {
   // playerId -> category -> manually assigned score
   final Map<String, Map<String, int>> _scoreOverrides = {};
 
+  bool _lifecycleObserverRegistered = false;
+  bool _appBackgrounded = false;
+  final Set<String> _backgroundedPlayers = {};
+
   Future<void> start({required String hostName}) async {
     await stop();
 
@@ -97,6 +109,8 @@ class HostServer {
       hostName: _hostName,
       playerCount: _players.length,
     );
+
+    _startLifecycleObserver();
 
     print('Host started');
     print('Room: $_roomCode');
@@ -182,6 +196,14 @@ class HostServer {
               _handleSubmitAnswers(playerId, message['answers']);
               break;
 
+            case 'player_minimized':
+              _handlePlayerActivity(playerId, minimized: true);
+              break;
+
+            case 'player_resumed':
+              _handlePlayerActivity(playerId, minimized: false);
+              break;
+
             case 'leave':
               _removePlayer(playerId);
               playerId = null;
@@ -200,6 +222,100 @@ class HostServer {
       },
       cancelOnError: false,
     );
+  }
+
+  void _handlePlayerActivity(String? playerId, {required bool minimized}) {
+    if (playerId == null || playerId.isEmpty) {
+      return;
+    }
+
+    final player = _players[playerId];
+    if (player == null) {
+      return;
+    }
+
+    if (minimized) {
+      _backgroundedPlayers.add(playerId);
+    } else {
+      _backgroundedPlayers.remove(playerId);
+    }
+
+    final message = <String, dynamic>{
+      'type': minimized ? 'player_minimized' : 'player_resumed',
+      'playerId': player.id,
+      'playerName': player.name,
+    };
+
+    _playerActivityController.add(message);
+    _broadcast(message);
+
+    print(
+      minimized
+          ? 'Player minimized: ${player.name}'
+          : 'Player resumed: ${player.name}',
+    );
+  }
+
+  void _broadcast(Map<String, dynamic> message) {
+    final encoded = jsonEncode(message);
+
+    for (final socket in _connections.values) {
+      try {
+        socket.add(encoded);
+      } catch (_) {}
+    }
+  }
+
+  void _startLifecycleObserver() {
+    if (_lifecycleObserverRegistered) {
+      return;
+    }
+
+    WidgetsBinding.instance.addObserver(this);
+    _lifecycleObserverRegistered = true;
+    _appBackgrounded = false;
+  }
+
+  void _stopLifecycleObserver() {
+    if (!_lifecycleObserverRegistered) {
+      return;
+    }
+
+    WidgetsBinding.instance.removeObserver(this);
+    _lifecycleObserverRegistered = false;
+    _appBackgrounded = false;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_server == null) {
+      return;
+    }
+
+    if (state == AppLifecycleState.paused && !_appBackgrounded) {
+      _appBackgrounded = true;
+      final message = <String, dynamic>{
+        'type': 'player_minimized',
+        'playerId': 'host',
+        'playerName': _hostName,
+      };
+      _playerActivityController.add(message);
+      _broadcast(message);
+      print('Host minimized: $_hostName');
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed && _appBackgrounded) {
+      _appBackgrounded = false;
+      final message = <String, dynamic>{
+        'type': 'player_resumed',
+        'playerId': 'host',
+        'playerName': _hostName,
+      };
+      _playerActivityController.add(message);
+      _broadcast(message);
+      print('Host resumed: $_hostName');
+    }
   }
 
   void _handleSubmitAnswers(String? playerId, dynamic rawAnswers) {
@@ -260,6 +376,7 @@ class HostServer {
 
     _connections.remove(playerId);
     _submittedAnswers.remove(playerId);
+    _backgroundedPlayers.remove(playerId);
 
     if (player != null) {
       print('Player disconnected: ${player.name}');
@@ -481,6 +598,9 @@ class HostServer {
   }
 
   Future<void> stop() async {
+    _stopLifecycleObserver();
+    _backgroundedPlayers.clear();
+
     await _discovery.stop();
 
     for (final socket in _connections.values) {

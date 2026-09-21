@@ -3,9 +3,10 @@ import 'dart:convert';
 import '../services/game_history_service.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import 'package:flutter/widgets.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-class PlayerClient {
+class PlayerClient with WidgetsBindingObserver {
   WebSocketChannel? _channel;
 
   final StreamController<List<Player>> _playersController =
@@ -29,7 +30,13 @@ class PlayerClient {
   final StreamController<void> _gameEndedController =
       StreamController<void>.broadcast();
 
+  final StreamController<Map<String, dynamic>> _playerActivityController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
   Stream<void> get gameEndedStream => _gameEndedController.stream;
+
+  Stream<Map<String, dynamic>> get playerActivityStream =>
+      _playerActivityController.stream;
 
   Stream<GameState> get gameStateStream => _gameStateController.stream;
 
@@ -54,6 +61,9 @@ class PlayerClient {
   String _playerId = '';
   String _playerName = '';
   final Map<String, int> _totalScores = {};
+
+  bool _lifecycleObserverRegistered = false;
+  bool _appBackgrounded = false;
 
   Map<String, int> get totalScores => Map.unmodifiable(_totalScores);
 
@@ -119,6 +129,7 @@ class PlayerClient {
 
       print('Host confirmed player joined');
 
+      _startLifecycleObserver();
       _statusController.add('Joined game');
     } catch (e) {
       print('Connection failed: $e');
@@ -175,6 +186,11 @@ class PlayerClient {
           _resultsController.add(results);
           break;
 
+        case 'player_minimized':
+        case 'player_resumed':
+          _handlePlayerActivity(message);
+          break;
+
         case 'game_ended':
           _gameEndedController.add(null);
           break;
@@ -184,6 +200,48 @@ class PlayerClient {
       }
     } catch (e) {
       print('Invalid server message: $e');
+    }
+  }
+
+  void _handlePlayerActivity(Map<String, dynamic> message) {
+    _playerActivityController.add(Map<String, dynamic>.from(message));
+  }
+
+  void _startLifecycleObserver() {
+    if (_lifecycleObserverRegistered) {
+      return;
+    }
+
+    WidgetsBinding.instance.addObserver(this);
+    _lifecycleObserverRegistered = true;
+    _appBackgrounded = false;
+  }
+
+  void _stopLifecycleObserver() {
+    if (!_lifecycleObserverRegistered) {
+      return;
+    }
+
+    WidgetsBinding.instance.removeObserver(this);
+    _lifecycleObserverRegistered = false;
+    _appBackgrounded = false;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_channel == null) {
+      return;
+    }
+
+    if (state == AppLifecycleState.paused && !_appBackgrounded) {
+      _appBackgrounded = true;
+      _send({'type': 'player_minimized'});
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed && _appBackgrounded) {
+      _appBackgrounded = false;
+      _send({'type': 'player_resumed'});
     }
   }
 
@@ -262,6 +320,7 @@ class PlayerClient {
   }
 
   Future<void> disconnect() async {
+    _stopLifecycleObserver();
     _joinCompleter = null;
 
     if (_channel != null) {
@@ -285,5 +344,6 @@ class PlayerClient {
     _submissionReceivedController.close();
     _resultsController.close();
     _gameEndedController.close();
+    _playerActivityController.close();
   }
 }

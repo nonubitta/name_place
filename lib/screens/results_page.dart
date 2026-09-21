@@ -45,6 +45,7 @@ class _ResultsPageState extends State<ResultsPage> {
   StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
   StreamSubscription<GameState>? _gameStateSubscription;
   StreamSubscription<void>? _gameEndedSubscription;
+  StreamSubscription<Map<String, dynamic>>? _playerActivitySubscription;
 
   bool _groupByCategory = true;
 
@@ -89,6 +90,38 @@ class _ResultsPageState extends State<ResultsPage> {
         );
       });
     }
+
+    if (widget.isHost && widget.hostServer != null) {
+      _playerActivitySubscription =
+          widget.hostServer!.playerActivityStream.listen(_onPlayerActivity);
+    } else if (!widget.isHost && widget.playerClient != null) {
+      _playerActivitySubscription =
+          widget.playerClient!.playerActivityStream.listen(_onPlayerActivity);
+    }
+  }
+
+  void _onPlayerActivity(Map<String, dynamic> message) {
+    if (!mounted) {
+      return;
+    }
+
+    final playerName = message['playerName']?.toString() ?? 'Player';
+    final type = message['type']?.toString();
+    final minimized = type == 'player_minimized';
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            minimized
+                ? '⚠️ $playerName left the game app'
+                : '✓ $playerName returned to the game',
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 
   void _handleGameState(GameState state) {
@@ -722,6 +755,7 @@ class _ResultsPageState extends State<ResultsPage> {
     _resultsSubscription?.cancel();
     _gameStateSubscription?.cancel();
     _gameEndedSubscription?.cancel();
+    _playerActivitySubscription?.cancel();
 
     super.dispose();
   }
