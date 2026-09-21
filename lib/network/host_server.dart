@@ -7,8 +7,6 @@ import 'package:name_place/models/player_answers.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import 'discovery_service.dart';
-import 'dart:math';
-import '../models/game_state.dart';
 
 class HostServer {
   static const int webSocketPort = 4040;
@@ -143,6 +141,10 @@ class HostServer {
               print('Player connected: ${player.name}');
               break;
 
+            case 'submit_answers':
+              _handleSubmitAnswers(playerId, message['answers']);
+              break;
+
             case 'leave':
               _removePlayer(playerId);
               playerId = null;
@@ -163,6 +165,49 @@ class HostServer {
     );
   }
 
+  void _handleSubmitAnswers(String? playerId, dynamic rawAnswers) {
+    if (playerId == null || playerId.isEmpty) {
+      return;
+    }
+
+    if (!_connections.containsKey(playerId)) {
+      return;
+    }
+
+    // Don't allow a player to submit twice.
+    if (_submittedAnswers.containsKey(playerId)) {
+      return;
+    }
+
+    final answers = <String, String>{};
+
+    if (rawAnswers is Map) {
+      rawAnswers.forEach((key, value) {
+        answers[key.toString()] = value?.toString() ?? '';
+      });
+    }
+
+    final submission = PlayerAnswers(
+      playerId: playerId,
+      answers: answers,
+      submitted: true,
+    );
+
+    _submittedAnswers[playerId] = submission;
+
+    _answersController.add(submission);
+
+    final socket = _connections[playerId];
+
+    if (socket != null) {
+      _send(socket, {'type': 'submission_received'});
+    }
+
+    final player = _players[playerId];
+
+    print('Answers received from ${player?.name ?? playerId}: $answers');
+  }
+
   void _removePlayer(String? playerId) {
     if (playerId == null) {
       return;
@@ -170,6 +215,7 @@ class HostServer {
 
     final player = _players.remove(playerId);
     _connections.remove(playerId);
+    _submittedAnswers.remove(playerId);
 
     if (player != null) {
       print('Player disconnected: ${player.name}');
@@ -262,11 +308,29 @@ class HostServer {
     _playersController.add(const []);
   }
 
+  void submitHostAnswers(Map<String, String> answers) {
+    if (_submittedAnswers.containsKey('host')) {
+      return;
+    }
+
+    final submission = PlayerAnswers(
+      playerId: 'host',
+      answers: answers,
+      submitted: true,
+    );
+
+    _submittedAnswers['host'] = submission;
+
+    _answersController.add(submission);
+
+    print('Host answers submitted: $answers');
+  }
+
   void dispose() {
     _discovery.dispose();
     _playersController.close();
     _gameStartedController.close();
-
+    _answersController.close();
     stop();
   }
 }

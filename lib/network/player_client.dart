@@ -20,6 +20,9 @@ class PlayerClient {
   final StreamController<GameState> _gameStateController =
       StreamController<GameState>.broadcast();
 
+  final StreamController<void> _submissionReceivedController =
+      StreamController<void>.broadcast();
+
   Stream<GameState> get gameStateStream => _gameStateController.stream;
 
   List<Player> _latestPlayers = [];
@@ -33,6 +36,9 @@ class PlayerClient {
   Stream<void> get gameStartedStream => _gameStartedController.stream;
 
   List<Player> get latestPlayers => List.unmodifiable(_latestPlayers);
+
+  Stream<void> get submissionReceivedStream =>
+      _submissionReceivedController.stream;
 
   bool get isConnected => _channel != null;
 
@@ -139,6 +145,11 @@ class PlayerClient {
           _gameStateController.add(state);
           break;
 
+        case 'submission_received':
+          print('Host received our answers');
+          _submissionReceivedController.add(null);
+          break;
+
         default:
           print('Unknown server message type: $type');
       }
@@ -177,6 +188,19 @@ class PlayerClient {
     _channel!.sink.add(jsonEncode(message));
   }
 
+  void submitAnswers(Map<String, String> answers) {
+    if (_channel == null) {
+      print('Cannot submit answers: not connected');
+      return;
+    }
+
+    final message = {'type': 'submit_answers', 'answers': answers};
+
+    print('Submitting answers: $answers');
+
+    _channel!.sink.add(jsonEncode(message));
+  }
+
   Future<void> disconnect() async {
     _joinCompleter = null;
 
@@ -198,5 +222,6 @@ class PlayerClient {
     _statusController.close();
     _gameStartedController.close();
     _gameStateController.close();
+    _submissionReceivedController.close();
   }
 }

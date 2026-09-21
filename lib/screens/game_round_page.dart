@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:name_place/models/player_answers.dart';
 
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -29,29 +30,63 @@ class GameRoundPage extends StatefulWidget {
 
 class _GameRoundPageState extends State<GameRoundPage> {
   late GameState _gameState;
+
   Timer? _timer;
   StreamSubscription<GameState>? _gameSubscription;
+  StreamSubscription<void>? _submissionSubscription;
+  StreamSubscription<PlayerAnswers>? _answersSubscription;
+  final Map<String, TextEditingController> _controllers = {};
+  final Set<String> _submittedPlayerIds = {};
+
+  bool _submitted = false;
 
   @override
   void initState() {
     super.initState();
 
+    if (!widget.isHost && widget.playerClient != null) {
+      _submissionSubscription = widget.playerClient!.submissionReceivedStream
+          .listen((_) {
+            if (!mounted) {
+              return;
+            }
+
+            setState(() {
+              _submitted = true;
+            });
+          });
+    }
     _gameState = widget.initialState;
 
-    // Players receive game state from the host.
+    _createControllers();
+
     if (!widget.isHost && widget.playerClient != null) {
-      _gameSubscription =
-          widget.playerClient!.gameStateStream.listen(_onGameState);
+      _gameSubscription = widget.playerClient!.gameStateStream.listen(
+        _onGameState,
+      );
     }
 
-    // Both host AND players run the visible countdown locally.
     if (_gameState.phase == GamePhase.playing) {
       _startCountdown();
+    }
+
+    if (widget.isHost && widget.hostServer != null) {
+      _answersSubscription = widget.hostServer!.answersStream.listen(
+        _onPlayerSubmitted,
+      );
+    }
+  }
+
+  void _createControllers() {
+    for (final category in _gameState.categories) {
+      _controllers[category] = TextEditingController();
     }
   }
 
   void _onGameState(GameState state) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
       _gameState = state;
@@ -62,169 +97,327 @@ class _GameRoundPageState extends State<GameRoundPage> {
     }
   }
 
+  void _onPlayerSubmitted(PlayerAnswers submission) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _submittedPlayerIds.add(submission.playerId);
+    });
+
+    print(
+      'Submission received: '
+      '${submission.playerId} -> ${submission.answers}',
+    );
+  }
+
   void _startCountdown() {
     _timer?.cancel();
 
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (!mounted) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        return;
+      }
 
-        if (_gameState.timeRemaining <= 1) {
-          _timer?.cancel();
-
-          setState(() {
-            _gameState = _gameState.copyWith(
-              timeRemaining: 0,
-              phase: GamePhase.results,
-            );
-          });
-
-          return;
-        }
+      if (_gameState.timeRemaining <= 1) {
+        _timer?.cancel();
 
         setState(() {
           _gameState = _gameState.copyWith(
-            timeRemaining: _gameState.timeRemaining - 1,
+            timeRemaining: 0,
+            phase: GamePhase.results,
           );
         });
-      },
-    );
+
+        // Automatically submit when time runs out.
+        if (!_submitted && !widget.isHost) {
+          _submitAnswers();
+        }
+
+        return;
+      }
+
+      setState(() {
+        _gameState = _gameState.copyWith(
+          timeRemaining: _gameState.timeRemaining - 1,
+        );
+      });
+    });
+  }
+
+  void _submitAnswers() {
+    if (_submitted) {
+      return;
+    }
+
+    final answers = <String, String>{};
+
+    for (final category in _gameState.categories) {
+      answers[category] = _controllers[category]?.text.trim() ?? '';
+    }
+
+    _submitted = true;
+
+    if (widget.isHost) {
+      widget.hostServer?.submitHostAnswers(answers);
+    } else {
+      widget.playerClient?.submitAnswers(answers);
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _gameSubscription?.cancel();
+    _answersSubscription?.cancel();
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
 
-    // Once the game screen is closed, the host no longer needs
-    // the local server for this first version.
     if (widget.isHost) {
       widget.hostServer?.dispose();
     }
 
     super.dispose();
+    _submissionSubscription?.cancel();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isPlaying = _gameState.phase == GamePhase.playing;
-    final bool isResults = _gameState.phase == GamePhase.results;
+    final isPlaying = _gameState.phase == GamePhase.playing;
+    final isResults = _gameState.phase == GamePhase.results;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Round ${_gameState.round}'),
-      ),
+      appBar: AppBar(title: Text('Round ${_gameState.round}')),
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 20,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Round ${_gameState.round}',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    widget.isHost ? 'HOST' : 'PLAYER',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildHeader(),
 
-            const Spacer(),
+            if (isPlaying) Expanded(child: _buildAnswerSheet()),
 
-            if (isPlaying) ...[
-              const Text(
-                'YOUR LETTER',
-                style: TextStyle(
-                  fontSize: 18,
+            if (isResults) Expanded(child: _buildResultsPlaceholder()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(
+                'Round ${_gameState.round}',
+                style: const TextStyle(
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 4,
                 ),
               ),
+              const Spacer(),
+              Text(
+                widget.isHost ? 'HOST' : 'PLAYER',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
 
-              const SizedBox(height: 40),
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              const Text('Letter', style: TextStyle(fontSize: 15)),
+
+              const SizedBox(width: 10),
 
               Text(
                 _gameState.letter,
                 style: const TextStyle(
-                  fontSize: 136,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 60),
+              const Spacer(),
 
-              Text(
-                '${_gameState.timeRemaining}',
-                style: const TextStyle(
-                  fontSize: 76,
-                  fontWeight: FontWeight.bold,
+              if (_gameState.phase == GamePhase.playing)
+                Text(
+                  '${_gameState.timeRemaining}s',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: _gameState.timeRemaining <= 5 ? Colors.red : null,
+                  ),
                 ),
-              ),
-
-              const Text(
-                'seconds',
-                style: TextStyle(
-                  fontSize: 18,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              const Text(
-                'Get ready!',
-                style: TextStyle(
-                  fontSize: 22,
-                ),
-              ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
 
-            if (isResults) ...[
-              const Icon(
-                Icons.timer_off,
-                size: 80,
-              ),
+  Widget _buildAnswerSheet() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final category in _gameState.categories)
+            _buildCategoryField(category),
 
-              const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
-              const Text(
-                'Time!',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-
-            const Spacer(),
-
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24),
+          SizedBox(
+            height: 52,
+            child: FilledButton(
+              onPressed: _submitted ? null : _submitAnswers,
               child: Text(
-                '${widget.players.length} players',
+                _submitted ? 'SUBMITTED' : 'SUBMIT',
                 style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
               ),
             ),
-          ],
+          ),
+
+          _buildSubmissionStatus(),
+
+          if (_submitted)
+            const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: Text(
+                'Your answers have been submitted.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryField(String category) {
+    final controller = _controllers[category];
+
+    if (controller == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: controller,
+        enabled: !_submitted,
+        textInputAction: TextInputAction.next,
+        decoration: InputDecoration(
+          labelText: category,
+          border: const OutlineInputBorder(),
         ),
+      ),
+    );
+  }
+
+  Widget _buildResultsPlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.timer_off, size: 72),
+          const SizedBox(height: 20),
+          const Text(
+            'Time!',
+            style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _submitted ? 'Answers submitted' : 'Round finished',
+            style: const TextStyle(fontSize: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmissionStatus() {
+    if (!widget.isHost) {
+      return const SizedBox.shrink();
+    }
+
+    final totalPlayers = widget.players.length + 1;
+    final submittedCount = _submittedPlayerIds.length;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Submissions',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text('$submittedCount / $totalPlayers submitted'),
+
+          const SizedBox(height: 12),
+
+          for (final player in widget.players)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Icon(
+                    _submittedPlayerIds.contains(player.id)
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(player.name),
+                ],
+              ),
+            ),
+
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: [
+                Icon(
+                  _submittedPlayerIds.contains('host')
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Text('Host'),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
