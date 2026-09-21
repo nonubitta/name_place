@@ -348,6 +348,21 @@ class HostServer {
     return scores;
   }
 
+  Future<void> endGame() async {
+    final message = jsonEncode({'type': 'game_ended'});
+
+    for (final socket in _connections.values) {
+      try {
+        socket.add(message);
+      } catch (_) {}
+    }
+
+    // Give the message a moment to reach clients.
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    await stop();
+  }
+
   void updateScore({
     required String playerId,
     required String category,

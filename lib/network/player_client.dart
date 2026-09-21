@@ -27,37 +27,35 @@ class PlayerClient {
   final StreamController<Map<String, dynamic>> _resultsController =
       StreamController<Map<String, dynamic>>.broadcast();
 
-  Stream<GameState> get gameStateStream =>
-      _gameStateController.stream;
+  final StreamController<void> _gameEndedController =
+      StreamController<void>.broadcast();
+
+  Stream<void> get gameEndedStream => _gameEndedController.stream;
+
+  Stream<GameState> get gameStateStream => _gameStateController.stream;
 
   List<Player> _latestPlayers = [];
 
   Completer<void>? _joinCompleter;
 
-  Stream<List<Player>> get playersStream =>
-      _playersController.stream;
+  Stream<List<Player>> get playersStream => _playersController.stream;
 
-  Stream<String> get statusStream =>
-      _statusController.stream;
+  Stream<String> get statusStream => _statusController.stream;
 
-  Stream<void> get gameStartedStream =>
-      _gameStartedController.stream;
+  Stream<void> get gameStartedStream => _gameStartedController.stream;
 
-  List<Player> get latestPlayers =>
-      List.unmodifiable(_latestPlayers);
+  List<Player> get latestPlayers => List.unmodifiable(_latestPlayers);
 
   Stream<void> get submissionReceivedStream =>
       _submissionReceivedController.stream;
 
-  Stream<Map<String, dynamic>> get resultsStream =>
-      _resultsController.stream;
+  Stream<Map<String, dynamic>> get resultsStream => _resultsController.stream;
 
   bool get isConnected => _channel != null;
 
   final Map<String, int> _totalScores = {};
 
-  Map<String, int> get totalScores =>
-      Map.unmodifiable(_totalScores);
+  Map<String, int> get totalScores => Map.unmodifiable(_totalScores);
 
   Future<void> connect({
     required String host,
@@ -90,12 +88,9 @@ class PlayerClient {
 
           _channel = null;
 
-          if (_joinCompleter != null &&
-              !_joinCompleter!.isCompleted) {
+          if (_joinCompleter != null && !_joinCompleter!.isCompleted) {
             _joinCompleter!.completeError(
-              Exception(
-                'Host closed the connection before joining.',
-              ),
+              Exception('Host closed the connection before joining.'),
             );
           }
 
@@ -106,23 +101,16 @@ class PlayerClient {
 
           _channel = null;
 
-          if (_joinCompleter != null &&
-              !_joinCompleter!.isCompleted) {
+          if (_joinCompleter != null && !_joinCompleter!.isCompleted) {
             _joinCompleter!.completeError(error);
           }
 
-          _statusController.add(
-            'Connection error: $error',
-          );
+          _statusController.add('Connection error: $error');
         },
         cancelOnError: false,
       );
 
-      _send({
-        'type': 'join',
-        'id': playerId,
-        'name': playerName,
-      });
+      _send({'type': 'join', 'id': playerId, 'name': playerName});
 
       print('Join request sent');
 
@@ -165,9 +153,7 @@ class PlayerClient {
 
         case 'game_state':
           final state = GameState.fromJson(
-            Map<String, dynamic>.from(
-              message['state'],
-            ),
+            Map<String, dynamic>.from(message['state']),
           );
 
           _gameStateController.add(state);
@@ -183,25 +169,23 @@ class PlayerClient {
 
           _updateTotalScores(message);
 
-          _resultsController.add(
-            Map<String, dynamic>.from(message),
-          );
+          _resultsController.add(Map<String, dynamic>.from(message));
 
           break;
 
+        case 'game_ended':
+          _gameEndedController.add(null);
+          break;
+
         default:
-          print(
-            'Unknown server message type: $type',
-          );
+          print('Unknown server message type: $type');
       }
     } catch (e) {
       print('Invalid server message: $e');
     }
   }
 
-  void _updateTotalScores(
-    Map<String, dynamic> message,
-  ) {
+  void _updateTotalScores(Map<String, dynamic> message) {
     final rawTotals = message['totalScores'];
 
     if (rawTotals is! Map) {
@@ -211,49 +195,33 @@ class PlayerClient {
     _totalScores.clear();
 
     rawTotals.forEach((key, value) {
-      _totalScores[key.toString()] =
-          int.tryParse(value.toString()) ?? 0;
+      _totalScores[key.toString()] = int.tryParse(value.toString()) ?? 0;
     });
   }
 
-  void _handleJoined(
-    Map<String, dynamic> message,
-  ) {
-    final roomCode =
-        message['roomCode']?.toString() ?? '';
+  void _handleJoined(Map<String, dynamic> message) {
+    final roomCode = message['roomCode']?.toString() ?? '';
 
     print('JOIN CONFIRMED. Room: $roomCode');
 
-    if (_joinCompleter != null &&
-        !_joinCompleter!.isCompleted) {
+    if (_joinCompleter != null && !_joinCompleter!.isCompleted) {
       _joinCompleter!.complete();
     }
   }
 
-  void _handlePlayers(
-    Map<String, dynamic> message,
-  ) {
-    final rawPlayers =
-        message['players'] as List<dynamic>? ?? [];
+  void _handlePlayers(Map<String, dynamic> message) {
+    final rawPlayers = message['players'] as List<dynamic>? ?? [];
 
     final players = rawPlayers
-        .map(
-          (json) => Player.fromJson(
-            Map<String, dynamic>.from(json),
-          ),
-        )
+        .map((json) => Player.fromJson(Map<String, dynamic>.from(json)))
         .toList();
 
     _latestPlayers = players;
 
-    _playersController.add(
-      List.unmodifiable(_latestPlayers),
-    );
+    _playersController.add(List.unmodifiable(_latestPlayers));
   }
 
-  void _send(
-    Map<String, dynamic> message,
-  ) {
+  void _send(Map<String, dynamic> message) {
     if (_channel == null) {
       return;
     }
@@ -261,20 +229,13 @@ class PlayerClient {
     _channel!.sink.add(jsonEncode(message));
   }
 
-  void submitAnswers(
-    Map<String, String> answers,
-  ) {
+  void submitAnswers(Map<String, String> answers) {
     if (_channel == null) {
-      print(
-        'Cannot submit answers: not connected',
-      );
+      print('Cannot submit answers: not connected');
       return;
     }
 
-    final message = {
-      'type': 'submit_answers',
-      'answers': answers,
-    };
+    final message = {'type': 'submit_answers', 'answers': answers};
 
     print('Submitting answers: $answers');
 
@@ -304,5 +265,6 @@ class PlayerClient {
     _gameStateController.close();
     _submissionReceivedController.close();
     _resultsController.close();
+    _gameEndedController.close();
   }
 }

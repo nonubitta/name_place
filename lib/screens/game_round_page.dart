@@ -29,30 +29,23 @@ class GameRoundPage extends StatefulWidget {
   });
 
   @override
-  State<GameRoundPage> createState() =>
-      _GameRoundPageState();
+  State<GameRoundPage> createState() => _GameRoundPageState();
 }
 
-class _GameRoundPageState
-    extends State<GameRoundPage> {
+class _GameRoundPageState extends State<GameRoundPage> {
   late GameState _gameState;
 
   Timer? _timer;
 
-  StreamSubscription<GameState>?
-      _gameSubscription;
+  StreamSubscription<GameState>? _gameSubscription;
 
-  StreamSubscription<void>?
-      _submissionSubscription;
+  StreamSubscription<void>? _submissionSubscription;
 
-  StreamSubscription<PlayerAnswers>?
-      _answersSubscription;
+  StreamSubscription<PlayerAnswers>? _answersSubscription;
 
-  StreamSubscription<Map<String, dynamic>>?
-      _resultsSubscription;
+  StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
 
-  final Map<String, TextEditingController>
-      _controllers = {};
+  final Map<String, TextEditingController> _controllers = {};
 
   final Set<String> _submittedPlayerIds = {};
 
@@ -68,69 +61,51 @@ class _GameRoundPageState
 
     // Get the current cumulative scores from
     // whichever networking side owns this game.
-    if (widget.isHost &&
-        widget.hostServer != null) {
-      _totalScores.addAll(
-        widget.hostServer!.totalScores,
-      );
-    } else if (!widget.isHost &&
-        widget.playerClient != null) {
-      _totalScores.addAll(
-        widget.playerClient!.totalScores,
-      );
+    if (widget.isHost && widget.hostServer != null) {
+      _totalScores.addAll(widget.hostServer!.totalScores);
+    } else if (!widget.isHost && widget.playerClient != null) {
+      _totalScores.addAll(widget.playerClient!.totalScores);
     }
 
     _createControllers();
 
-    if (!widget.isHost &&
-        widget.playerClient != null) {
-      _submissionSubscription =
-          widget.playerClient!
-              .submissionReceivedStream
-              .listen((_) {
-        if (!mounted) {
-          return;
-        }
+    if (!widget.isHost && widget.playerClient != null) {
+      _submissionSubscription = widget.playerClient!.submissionReceivedStream
+          .listen((_) {
+            if (!mounted) {
+              return;
+            }
 
-        setState(() {
-          _submitted = true;
-        });
-      });
+            setState(() {
+              _submitted = true;
+            });
+          });
     }
 
-    if (!widget.isHost &&
-        widget.playerClient != null) {
-      _gameSubscription =
-          widget.playerClient!
-              .gameStateStream
-              .listen(_onGameState);
+    if (!widget.isHost && widget.playerClient != null) {
+      _gameSubscription = widget.playerClient!.gameStateStream.listen(
+        _onGameState,
+      );
     }
 
-    if (_gameState.phase ==
-        GamePhase.playing) {
+    if (_gameState.phase == GamePhase.playing) {
       _startCountdown();
     }
 
-    if (widget.isHost &&
-        widget.hostServer != null) {
-      _answersSubscription =
-          widget.hostServer!
-              .answersStream
-              .listen(_onPlayerSubmitted);
+    if (widget.isHost && widget.hostServer != null) {
+      _answersSubscription = widget.hostServer!.answersStream.listen(
+        _onPlayerSubmitted,
+      );
     }
 
-    if (widget.isHost &&
-        widget.hostServer != null) {
-      _resultsSubscription =
-          widget.hostServer!
-              .resultsStream
-              .listen(_onResults);
-    } else if (!widget.isHost &&
-        widget.playerClient != null) {
-      _resultsSubscription =
-          widget.playerClient!
-              .resultsStream
-              .listen(_onResults);
+    if (widget.isHost && widget.hostServer != null) {
+      _resultsSubscription = widget.hostServer!.resultsStream.listen(
+        _onResults,
+      );
+    } else if (!widget.isHost && widget.playerClient != null) {
+      _resultsSubscription = widget.playerClient!.resultsStream.listen(
+        _onResults,
+      );
     }
   }
 
@@ -138,10 +113,8 @@ class _GameRoundPageState
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ScoreboardPage(
-          players: widget.players,
-          totalScores: _totalScores,
-        ),
+        builder: (_) =>
+            ScoreboardPage(players: widget.players, totalScores: _totalScores),
       ),
     );
   }
@@ -149,9 +122,7 @@ class _GameRoundPageState
   void _openSettings() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const SettingsPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
     );
   }
 
@@ -172,19 +143,13 @@ class _GameRoundPageState
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
+                Navigator.pop(context, false);
               },
               child: const Text('CANCEL'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
+                Navigator.pop(context, true);
               },
               child: const Text('END GAME'),
             ),
@@ -203,16 +168,12 @@ class _GameRoundPageState
       return;
     }
 
-    Navigator.of(context).popUntil(
-      (route) => route.isFirst,
-    );
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   void _createControllers() {
-    for (final category
-        in _gameState.categories) {
-      _controllers[category] =
-          TextEditingController();
+    for (final category in _gameState.categories) {
+      _controllers[category] = TextEditingController();
     }
   }
 
@@ -223,14 +184,12 @@ class _GameRoundPageState
 
     // Ignore duplicate state updates for the
     // currently displayed round.
-    if (state.round == _gameState.round &&
-        state.letter == _gameState.letter) {
+    if (state.round == _gameState.round && state.letter == _gameState.letter) {
       setState(() {
         _gameState = state;
       });
 
-      if (state.phase ==
-          GamePhase.playing) {
+      if (state.phase == GamePhase.playing) {
         _startCountdown();
       }
 
@@ -239,8 +198,7 @@ class _GameRoundPageState
 
     _timer?.cancel();
 
-    for (final controller
-        in _controllers.values) {
+    for (final controller in _controllers.values) {
       controller.dispose();
     }
 
@@ -254,23 +212,18 @@ class _GameRoundPageState
 
     _createControllers();
 
-    if (state.phase ==
-        GamePhase.playing) {
+    if (state.phase == GamePhase.playing) {
       _startCountdown();
     }
   }
 
-  void _onPlayerSubmitted(
-    PlayerAnswers submission,
-  ) {
+  void _onPlayerSubmitted(PlayerAnswers submission) {
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _submittedPlayerIds.add(
-        submission.playerId,
-      );
+      _submittedPlayerIds.add(submission.playerId);
     });
 
     print(
@@ -280,75 +233,48 @@ class _GameRoundPageState
     );
   }
 
-  void _onResults(
-    Map<String, dynamic> message,
-  ) {
+  void _onResults(Map<String, dynamic> message) {
     if (!mounted) {
       return;
     }
 
-    final rawTotals =
-        message['totalScores'];
+    final rawTotals = message['totalScores'];
 
     if (rawTotals is Map) {
       _totalScores.clear();
 
       rawTotals.forEach((key, value) {
-        _totalScores[key.toString()] =
-            int.tryParse(
-                  value.toString(),
-                ) ??
-                0;
+        _totalScores[key.toString()] = int.tryParse(value.toString()) ?? 0;
       });
     }
 
-    final rawAnswers =
-        message['answers'];
+    final rawAnswers = message['answers'];
 
-    final submissions =
-        <String, PlayerAnswers>{};
+    final submissions = <String, PlayerAnswers>{};
 
     if (rawAnswers is Map) {
-      rawAnswers.forEach(
-        (playerId, value) {
-          if (value is Map) {
-            submissions[
-                    playerId.toString()] =
-                PlayerAnswers.fromJson(
-              Map<String, dynamic>.from(
-                value,
-              ),
-            );
-          }
-        },
-      );
+      rawAnswers.forEach((playerId, value) {
+        if (value is Map) {
+          submissions[playerId.toString()] = PlayerAnswers.fromJson(
+            Map<String, dynamic>.from(value),
+          );
+        }
+      });
     }
 
-    final round = int.tryParse(
-          message['round']?.toString() ??
-              '',
-        ) ??
-        _gameState.round;
+    final round =
+        int.tryParse(message['round']?.toString() ?? '') ?? _gameState.round;
 
-    final letter =
-        message['letter']?.toString() ??
-            '';
+    final letter = message['letter']?.toString() ?? '';
 
-    final rawScores =
-        message['scores'];
+    final rawScores = message['scores'];
 
     final scores = <PlayerScore>[];
 
     if (rawScores is List) {
       for (final value in rawScores) {
         if (value is Map) {
-          scores.add(
-            PlayerScore.fromJson(
-              Map<String, dynamic>.from(
-                value,
-              ),
-            ),
-          );
+          scores.add(PlayerScore.fromJson(Map<String, dynamic>.from(value)));
         }
       }
     }
@@ -373,39 +299,31 @@ class _GameRoundPageState
   void _startCountdown() {
     _timer?.cancel();
 
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (!mounted) {
-          return;
-        }
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        return;
+      }
 
-        if (_gameState.timeRemaining <= 1) {
-          _timer?.cancel();
-
-          setState(() {
-            _gameState =
-                _gameState.copyWith(
-              timeRemaining: 0,
-            );
-          });
-
-          if (!_submitted) {
-            _submitAnswers();
-          }
-
-          return;
-        }
+      if (_gameState.timeRemaining <= 1) {
+        _timer?.cancel();
 
         setState(() {
-          _gameState =
-              _gameState.copyWith(
-            timeRemaining:
-                _gameState.timeRemaining - 1,
-          );
+          _gameState = _gameState.copyWith(timeRemaining: 0);
         });
-      },
-    );
+
+        if (!_submitted) {
+          _submitAnswers();
+        }
+
+        return;
+      }
+
+      setState(() {
+        _gameState = _gameState.copyWith(
+          timeRemaining: _gameState.timeRemaining - 1,
+        );
+      });
+    });
   }
 
   void _submitAnswers() {
@@ -413,30 +331,18 @@ class _GameRoundPageState
       return;
     }
 
-    final answers =
-        <String, String>{};
+    final answers = <String, String>{};
 
-    for (final category
-        in _gameState.categories) {
-      answers[category] =
-          _controllers[category]
-                  ?.text
-                  .trim() ??
-              '';
+    for (final category in _gameState.categories) {
+      answers[category] = _controllers[category]?.text.trim() ?? '';
     }
 
     _submitted = true;
 
     if (widget.isHost) {
-      widget.hostServer
-          ?.submitHostAnswers(
-        answers,
-      );
+      widget.hostServer?.submitHostAnswers(answers);
     } else {
-      widget.playerClient
-          ?.submitAnswers(
-        answers,
-      );
+      widget.playerClient?.submitAnswers(answers);
     }
 
     if (mounted) {
@@ -452,8 +358,7 @@ class _GameRoundPageState
     _submissionSubscription?.cancel();
     _resultsSubscription?.cancel();
 
-    for (final controller
-        in _controllers.values) {
+    for (final controller in _controllers.values) {
       controller.dispose();
     }
 
@@ -462,40 +367,28 @@ class _GameRoundPageState
 
   @override
   Widget build(BuildContext context) {
-    final isPlaying =
-        _gameState.phase ==
-            GamePhase.playing;
+    final isPlaying = _gameState.phase == GamePhase.playing;
 
-    final isResults =
-        _gameState.phase ==
-            GamePhase.results;
+    final isResults = _gameState.phase == GamePhase.results;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Round ${_gameState.round}',
-        ),
+        title: Text('Round ${_gameState.round}'),
         actions: [
           IconButton(
             tooltip: 'Scoreboard',
-            icon: const Icon(
-              Icons.leaderboard_outlined,
-            ),
+            icon: const Icon(Icons.leaderboard_outlined),
             onPressed: _openScoreboard,
           ),
           IconButton(
             tooltip: 'Settings',
-            icon: const Icon(
-              Icons.settings_outlined,
-            ),
+            icon: const Icon(Icons.settings_outlined),
             onPressed: _openSettings,
           ),
           if (widget.isHost)
             IconButton(
               tooltip: 'End Game',
-              icon: const Icon(
-                Icons.stop_circle_outlined,
-              ),
+              icon: const Icon(Icons.stop_circle_outlined),
               onPressed: _endGame,
             ),
         ],
@@ -505,17 +398,9 @@ class _GameRoundPageState
           children: [
             _buildHeader(),
 
-            if (isPlaying)
-              Expanded(
-                child:
-                    _buildAnswerSheet(),
-              ),
+            if (isPlaying) Expanded(child: _buildAnswerSheet()),
 
-            if (isResults)
-              Expanded(
-                child:
-                    _buildResultsPlaceholder(),
-              ),
+            if (isResults) Expanded(child: _buildResultsPlaceholder()),
           ],
         ),
       ),
@@ -524,12 +409,7 @@ class _GameRoundPageState
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        12,
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
         children: [
           Row(
@@ -543,9 +423,7 @@ class _GameRoundPageState
               ),
               const Spacer(),
               Text(
-                widget.isHost
-                    ? 'HOST'
-                    : 'PLAYER',
+                widget.isHost ? 'HOST' : 'PLAYER',
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -557,12 +435,7 @@ class _GameRoundPageState
           const SizedBox(height: 12),
           Row(
             children: [
-              const Text(
-                'Letter',
-                style: TextStyle(
-                  fontSize: 15,
-                ),
-              ),
+              const Text('Letter', style: TextStyle(fontSize: 15)),
               const SizedBox(width: 10),
               Text(
                 _gameState.letter,
@@ -572,18 +445,13 @@ class _GameRoundPageState
                 ),
               ),
               const Spacer(),
-              if (_gameState.phase ==
-                  GamePhase.playing)
+              if (_gameState.phase == GamePhase.playing)
                 Text(
                   '${_gameState.timeRemaining}s',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color:
-                        _gameState.timeRemaining <=
-                                5
-                            ? Colors.red
-                            : null,
+                    color: _gameState.timeRemaining <= 5 ? Colors.red : null,
                   ),
                 ),
             ],
@@ -595,37 +463,23 @@ class _GameRoundPageState
 
   Widget _buildAnswerSheet() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        8,
-        20,
-        24,
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final category
-              in _gameState.categories)
-            _buildCategoryField(
-              category,
-            ),
+          for (final category in _gameState.categories)
+            _buildCategoryField(category),
 
           const SizedBox(height: 12),
 
           SizedBox(
             height: 52,
             child: FilledButton(
-              onPressed: _submitted
-                  ? null
-                  : _submitAnswers,
+              onPressed: _submitted ? null : _submitAnswers,
               child: Text(
-                _submitted
-                    ? 'SUBMITTED'
-                    : 'SUBMIT',
+                _submitted ? 'SUBMITTED' : 'SUBMIT',
                 style: const TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                   letterSpacing: 1,
                 ),
               ),
@@ -636,15 +490,13 @@ class _GameRoundPageState
 
           if (_submitted)
             const Padding(
-              padding:
-                  EdgeInsets.only(top: 12),
+              padding: EdgeInsets.only(top: 12),
               child: Text(
                 'Your answers have been submitted.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.green,
-                  fontWeight:
-                      FontWeight.w600,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -653,30 +505,22 @@ class _GameRoundPageState
     );
   }
 
-  Widget _buildCategoryField(
-    String category,
-  ) {
-    final controller =
-        _controllers[category];
+  Widget _buildCategoryField(String category) {
+    final controller = _controllers[category];
 
     if (controller == null) {
       return const SizedBox.shrink();
     }
 
     return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 16,
-      ),
+      padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: controller,
         enabled: !_submitted,
-        textInputAction:
-            TextInputAction.next,
+        textInputAction: TextInputAction.next,
         decoration: InputDecoration(
           labelText: category,
-          border:
-              const OutlineInputBorder(),
+          border: const OutlineInputBorder(),
         ),
       ),
     );
@@ -685,29 +529,18 @@ class _GameRoundPageState
   Widget _buildResultsPlaceholder() {
     return Center(
       child: Column(
-        mainAxisAlignment:
-            MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.timer_off,
-            size: 72,
-          ),
+          const Icon(Icons.timer_off, size: 72),
           const SizedBox(height: 20),
           const Text(
             'Time!',
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Text(
-            _submitted
-                ? 'Answers submitted'
-                : 'Round finished',
-            style: const TextStyle(
-              fontSize: 18,
-            ),
+            _submitted ? 'Answers submitted' : 'Round finished',
+            style: const TextStyle(fontSize: 18),
           ),
         ],
       ),
@@ -719,89 +552,50 @@ class _GameRoundPageState
       return const SizedBox.shrink();
     }
 
-    final totalPlayers =
-        widget.players.length + 1;
-
-    final submittedCount =
-        _submittedPlayerIds.length;
+    final totalPlayers = widget.players.length;
+    final submittedCount = _submittedPlayerIds.length;
 
     return Container(
-      margin:
-          const EdgeInsets.only(top: 16),
+      margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(
-          color:
-              Theme.of(context)
-                  .dividerColor,
-        ),
-        borderRadius:
-            BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Submissions',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(
-                  fontWeight:
-                      FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          Text(
-            '$submittedCount / '
-            '$totalPlayers submitted',
-          ),
+
+          Text('$submittedCount / $totalPlayers submitted'),
+
           const SizedBox(height: 12),
-          for (final player
-              in widget.players)
+
+          for (final player in widget.players)
             Padding(
-              padding:
-                  const EdgeInsets.only(
-                bottom: 6,
-              ),
+              padding: const EdgeInsets.only(bottom: 6),
               child: Row(
                 children: [
                   Icon(
-                    _submittedPlayerIds
-                            .contains(
-                          player.id,
-                        )
+                    _submittedPlayerIds.contains(player.id)
                         ? Icons.check_circle
-                        : Icons
-                            .radio_button_unchecked,
+                        : Icons.radio_button_unchecked,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(player.name),
+
+                  Text(
+                    player.id == 'host' ? '${player.name} (Host)' : player.name,
+                  ),
                 ],
               ),
             ),
-          Padding(
-            padding:
-                const EdgeInsets.only(
-              top: 6,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  _submittedPlayerIds
-                          .contains('host')
-                      ? Icons.check_circle
-                      : Icons
-                          .radio_button_unchecked,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                const Text('Host'),
-              ],
-            ),
-          ),
         ],
       ),
     );

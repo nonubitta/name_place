@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../services/app_preferences.dart';
-
+import '../services/app_preferences.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../network/host_server.dart';
@@ -75,7 +75,7 @@ class _HostPageState extends State<HostPage> {
     });
   }
 
-  void _startGame() {
+  Future<void> _startGame() async {
     if (_players.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Waiting for at least one player.')),
@@ -84,7 +84,9 @@ class _HostPageState extends State<HostPage> {
       return;
     }
 
-    final state = _server.startGame();
+    final categories = await AppPreferences.getCategories();
+
+    final state = _server.startGame(categories: categories);
 
     if (state == null) {
       return;

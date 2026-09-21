@@ -1,16 +1,16 @@
 import 'dart:async';
-import 'scoreboard_page.dart';
-import 'settings_page.dart';
+
 import 'package:flutter/material.dart';
+
 import '../models/game_state.dart';
-import 'game_round_page.dart';
-import '../models/player_score.dart';
 import '../models/player.dart';
 import '../models/player_answers.dart';
+import '../models/player_score.dart';
 import '../network/host_server.dart';
 import '../network/player_client.dart';
+import 'game_round_page.dart';
+import 'scoreboard_page.dart';
 import 'settings_page.dart';
-import '../services/app_preferences.dart';
 
 class ResultsPage extends StatefulWidget {
   final int round;
@@ -42,9 +42,9 @@ class ResultsPage extends StatefulWidget {
 class _ResultsPageState extends State<ResultsPage> {
   late List<PlayerScore> _scores;
 
-  String _hostName = 'Host';
   StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
   StreamSubscription<GameState>? _gameStateSubscription;
+  StreamSubscription<void>? _gameEndedSubscription;
 
   @override
   void initState() {
@@ -66,19 +66,13 @@ class _ResultsPageState extends State<ResultsPage> {
       );
     }
 
-    _loadHostName();
-  }
+    if (!widget.isHost && widget.playerClient != null) {
+      _gameEndedSubscription = widget.playerClient!.gameEndedStream.listen((_) {
+        if (!mounted) {
+          return;
+        }
 
-  Future<void> _loadHostName() async {
-    final savedName = await AppPreferences.getPlayerName();
-
-    if (!mounted) {
-      return;
-    }
-
-    if (savedName.isNotEmpty) {
-      setState(() {
-        _hostName = savedName;
+        Navigator.of(context).popUntil((route) => route.isFirst);
       });
     }
   }
@@ -162,17 +156,69 @@ class _ResultsPageState extends State<ResultsPage> {
   }
 
   String _playerName(String playerId) {
-    if (playerId == 'host') {
-      return _hostName;
-    }
-
     for (final player in widget.players) {
       if (player.id == playerId) {
+        if (player.id == 'host') {
+          return '${player.name} (Host)';
+        }
+
         return player.name;
       }
     }
 
+    // Important:
+    // Never use this phone's SharedPreferences here.
+    // The client's saved name is NOT the host's name.
+    if (playerId == 'host') {
+      return 'Host';
+    }
+
     return 'Player';
+  }
+
+  Future<void> _exitGame() async {
+    if (widget.isHost) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Exit Game?'),
+            content: const Text('This will end the game for everyone.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context, false);
+                },
+                child: const Text('CANCEL'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context, true);
+                },
+                child: const Text('EXIT GAME'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed != true) {
+        return;
+      }
+
+      await widget.hostServer?.endGame();
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).popUntil((route) => route.isFirst);
+
+      return;
+    }
+
+    // Non-host player simply leaves locally.
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -193,6 +239,11 @@ class _ResultsPageState extends State<ResultsPage> {
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
             onPressed: _openSettings,
+          ),
+          IconButton(
+            tooltip: 'Exit Game',
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: _exitGame,
           ),
         ],
       ),
@@ -553,7 +604,7 @@ class _ResultsPageState extends State<ResultsPage> {
   void dispose() {
     _resultsSubscription?.cancel();
     _gameStateSubscription?.cancel();
-
+    _gameEndedSubscription?.cancel();
     super.dispose();
   }
 }
