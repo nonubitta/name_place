@@ -1,27 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
+import '../services/theme_controller.dart';
 import '../services/app_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({
-    super.key,
-  });
+  const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() =>
-      _SettingsPageState();
+  State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState
-    extends State<SettingsPage> {
-  final TextEditingController _nameController =
-      TextEditingController();
+class _SettingsPageState extends State<SettingsPage> {
+  final TextEditingController _nameController = TextEditingController();
 
   List<String> _categories = [];
 
-  int _roundDuration =
-      AppPreferences.defaultRoundDuration;
+  int _roundDuration = AppPreferences.defaultRoundDuration;
 
   String _appVersion = '';
   String _buildNumber = '';
@@ -47,14 +41,11 @@ class _SettingsPageState
   // --------------------------------------------------
 
   Future<void> _loadSettings() async {
-    final playerName =
-        await AppPreferences.getPlayerName();
+    final playerName = await AppPreferences.getPlayerName();
 
-    final categories =
-        await AppPreferences.getCategories();
+    final categories = await AppPreferences.getCategories();
 
-    final roundDuration =
-        await AppPreferences.getRoundDuration();
+    final roundDuration = await AppPreferences.getRoundDuration();
 
     if (!mounted) {
       return;
@@ -62,17 +53,14 @@ class _SettingsPageState
 
     setState(() {
       _nameController.text = playerName;
-      _categories = List<String>.from(
-        categories,
-      );
+      _categories = List<String>.from(categories);
       _roundDuration = roundDuration;
       _loading = false;
     });
   }
 
   Future<void> _loadAppInfo() async {
-    final packageInfo =
-        await PackageInfo.fromPlatform();
+    final packageInfo = await PackageInfo.fromPlatform();
 
     if (!mounted) {
       return;
@@ -89,9 +77,7 @@ class _SettingsPageState
   // --------------------------------------------------
 
   Future<void> _savePlayerName() async {
-    await AppPreferences.setPlayerName(
-      _nameController.text,
-    );
+    await AppPreferences.setPlayerName(_nameController.text);
   }
 
   // --------------------------------------------------
@@ -99,24 +85,18 @@ class _SettingsPageState
   // --------------------------------------------------
 
   Future<void> _addCategory() async {
-    final category = await _showCategoryDialog(
-      title: 'Add Category',
-    );
+    final category = await _showCategoryDialog(title: 'Add Category');
 
     if (category == null) {
       return;
     }
 
     final exists = _categories.any(
-      (item) =>
-          item.toLowerCase() ==
-          category.toLowerCase(),
+      (item) => item.toLowerCase() == category.toLowerCase(),
     );
 
     if (exists) {
-      _showMessage(
-        'That category already exists.',
-      );
+      _showMessage('That category already exists.');
       return;
     }
 
@@ -124,16 +104,11 @@ class _SettingsPageState
       _categories.add(category);
     });
 
-    await AppPreferences.setCategories(
-      _categories,
-    );
+    await AppPreferences.setCategories(_categories);
   }
 
-  Future<void> _editCategory(
-    int index,
-  ) async {
-    final category =
-        await _showCategoryDialog(
+  Future<void> _editCategory(int index) async {
+    final category = await _showCategoryDialog(
       title: 'Edit Category',
       initialValue: _categories[index],
     );
@@ -142,18 +117,12 @@ class _SettingsPageState
       return;
     }
 
-    final duplicateIndex =
-        _categories.indexWhere(
-      (item) =>
-          item.toLowerCase() ==
-          category.toLowerCase(),
+    final duplicateIndex = _categories.indexWhere(
+      (item) => item.toLowerCase() == category.toLowerCase(),
     );
 
-    if (duplicateIndex != -1 &&
-        duplicateIndex != index) {
-      _showMessage(
-        'That category already exists.',
-      );
+    if (duplicateIndex != -1 && duplicateIndex != index) {
+      _showMessage('That category already exists.');
       return;
     }
 
@@ -161,27 +130,18 @@ class _SettingsPageState
       _categories[index] = category;
     });
 
-    await AppPreferences.setCategories(
-      _categories,
-    );
+    await AppPreferences.setCategories(_categories);
   }
 
-  Future<void> _deleteCategory(
-    int index,
-  ) async {
+  Future<void> _deleteCategory(int index) async {
     if (_categories.length <= 1) {
-      _showMessage(
-        'At least one category is required.',
-      );
+      _showMessage('At least one category is required.');
       return;
     }
 
     final category = _categories[index];
 
-    final confirmed =
-        await _showDeleteConfirmation(
-      category,
-    );
+    final confirmed = await _showDeleteConfirmation(category);
 
     if (!confirmed) {
       return;
@@ -191,14 +151,11 @@ class _SettingsPageState
       _categories.removeAt(index);
     });
 
-    await AppPreferences.setCategories(
-      _categories,
-    );
+    await AppPreferences.setCategories(_categories);
   }
 
   Future<void> _resetCategories() async {
-    final confirmed =
-        await _showResetConfirmation();
+    final confirmed = await _showResetConfirmation();
 
     if (!confirmed) {
       return;
@@ -206,53 +163,38 @@ class _SettingsPageState
 
     await AppPreferences.resetCategories();
 
-    final defaults =
-        await AppPreferences.getCategories();
+    final defaults = await AppPreferences.getCategories();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _categories =
-          List<String>.from(defaults);
+      _categories = List<String>.from(defaults);
     });
   }
 
-  void _onReorder(
-    int oldIndex,
-    int newIndex,
-  ) {
+  void _onReorder(int oldIndex, int newIndex) {
     setState(() {
       if (oldIndex < newIndex) {
         newIndex -= 1;
       }
 
-      final item =
-          _categories.removeAt(oldIndex);
+      final item = _categories.removeAt(oldIndex);
 
-      _categories.insert(
-        newIndex,
-        item,
-      );
+      _categories.insert(newIndex, item);
     });
 
-    AppPreferences.setCategories(
-      _categories,
-    );
+    AppPreferences.setCategories(_categories);
   }
 
   Future<String?> _showCategoryDialog({
     required String title,
     String initialValue = '',
   }) async {
-    final controller =
-        TextEditingController(
-      text: initialValue,
-    );
+    final controller = TextEditingController(text: initialValue);
 
-    final result =
-        await showDialog<String>(
+    final result = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -260,23 +202,17 @@ class _SettingsPageState
           content: TextField(
             controller: controller,
             autofocus: true,
-            textCapitalization:
-                TextCapitalization.words,
-            decoration:
-                const InputDecoration(
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
               labelText: 'Category',
               hintText: 'Enter category name',
               border: OutlineInputBorder(),
             ),
             onSubmitted: (_) {
-              final value =
-                  controller.text.trim();
+              final value = controller.text.trim();
 
               if (value.isNotEmpty) {
-                Navigator.pop(
-                  context,
-                  value,
-                );
+                Navigator.pop(context, value);
               }
             },
           ),
@@ -289,17 +225,13 @@ class _SettingsPageState
             ),
             FilledButton(
               onPressed: () {
-                final value =
-                    controller.text.trim();
+                final value = controller.text.trim();
 
                 if (value.isEmpty) {
                   return;
                 }
 
-                Navigator.pop(
-                  context,
-                  value,
-                );
+                Navigator.pop(context, value);
               },
               child: const Text('Save'),
             ),
@@ -313,36 +245,23 @@ class _SettingsPageState
     return result;
   }
 
-  Future<bool> _showDeleteConfirmation(
-    String category,
-  ) async {
-    final result =
-        await showDialog<bool>(
+  Future<bool> _showDeleteConfirmation(String category) async {
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
-            'Delete Category?',
-          ),
-          content: Text(
-            'Remove "$category" from your game categories?',
-          ),
+          title: const Text('Delete Category?'),
+          content: Text('Remove "$category" from your game categories?'),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
+                Navigator.pop(context, false);
               },
               child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
+                Navigator.pop(context, true);
               },
               child: const Text('Delete'),
             ),
@@ -355,14 +274,11 @@ class _SettingsPageState
   }
 
   Future<bool> _showResetConfirmation() async {
-    final result =
-        await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
-            'Reset Categories?',
-          ),
+          title: const Text('Reset Categories?'),
           content: const Text(
             'This will restore the default categories:\n\n'
             'Name\n'
@@ -373,19 +289,13 @@ class _SettingsPageState
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
+                Navigator.pop(context, false);
               },
               child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
+                Navigator.pop(context, true);
               },
               child: const Text('Reset'),
             ),
@@ -401,16 +311,12 @@ class _SettingsPageState
   // Time / Round
   // --------------------------------------------------
 
-  Future<void> _setRoundDuration(
-    int seconds,
-  ) async {
+  Future<void> _setRoundDuration(int seconds) async {
     setState(() {
       _roundDuration = seconds;
     });
 
-    await AppPreferences.setRoundDuration(
-      seconds,
-    );
+    await AppPreferences.setRoundDuration(seconds);
   }
 
   // --------------------------------------------------
@@ -420,11 +326,7 @@ class _SettingsPageState
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   // --------------------------------------------------
@@ -435,30 +337,21 @@ class _SettingsPageState
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Settings'),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        appBar: AppBar(title: const Text('Settings')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          8,
-          16,
-          32,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
           _buildPlayerSection(),
           const SizedBox(height: 20),
           _buildGameSettingsSection(),
+          const SizedBox(height: 20),
+          _buildAppearanceSection(),
           const SizedBox(height: 24),
           _buildAboutSection(),
         ],
@@ -475,36 +368,26 @@ class _SettingsPageState
       title: 'Player',
       icon: Icons.person_outline,
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Your name',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _nameController,
-            textCapitalization:
-                TextCapitalization.words,
-            textInputAction:
-                TextInputAction.done,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.done,
             decoration: InputDecoration(
               hintText: 'Enter your name',
-              prefixIcon: const Icon(
-                Icons.person_outline,
-              ),
+              prefixIcon: const Icon(Icons.person_outline),
               suffixIcon: IconButton(
                 tooltip: 'Save',
-                icon: const Icon(
-                  Icons.check_rounded,
-                ),
+                icon: const Icon(Icons.check_rounded),
                 onPressed: _savePlayerName,
               ),
-              border:
-                  const OutlineInputBorder(),
+              border: const OutlineInputBorder(),
             ),
             onSubmitted: (_) {
               _savePlayerName();
@@ -515,9 +398,7 @@ class _SettingsPageState
             'This name will be used when joining a game.',
             style: TextStyle(
               fontSize: 12,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -534,8 +415,7 @@ class _SettingsPageState
       title: 'Game Settings',
       icon: Icons.tune_rounded,
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildTimeRoundSetting(),
 
@@ -557,12 +437,10 @@ class _SettingsPageState
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius:
-            BorderRadius.circular(12),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
@@ -570,41 +448,29 @@ class _SettingsPageState
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .primaryContainer,
-              borderRadius:
-                  BorderRadius.circular(11),
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(11),
             ),
             child: Icon(
               Icons.timer_outlined,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onPrimaryContainer,
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Time / Round',
-                  style: TextStyle(
-                    fontWeight:
-                        FontWeight.w600,
-                    fontSize: 15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   'How long players have to answer each round.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -613,38 +479,25 @@ class _SettingsPageState
           const SizedBox(width: 8),
           DropdownButtonHideUnderline(
             child: DropdownButton<int>(
-              value: AppPreferences
-                      .roundDurationOptions
-                      .contains(
-                _roundDuration,
-              )
+              value:
+                  AppPreferences.roundDurationOptions.contains(_roundDuration)
                   ? _roundDuration
-                  : AppPreferences
-                      .defaultRoundDuration,
-              borderRadius:
-                  BorderRadius.circular(12),
-              items: AppPreferences
-                  .roundDurationOptions
+                  : AppPreferences.defaultRoundDuration,
+              borderRadius: BorderRadius.circular(12),
+              items: AppPreferences.roundDurationOptions
                   .map(
-                    (seconds) =>
-                        DropdownMenuItem<int>(
+                    (seconds) => DropdownMenuItem<int>(
                       value: seconds,
                       child: Text(
                         '$seconds sec',
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.w600,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                   )
                   .toList(),
               onChanged: (value) {
                 if (value != null) {
-                  _setRoundDuration(
-                    value,
-                  );
+                  _setRoundDuration(value);
                 }
               },
             ),
@@ -659,34 +512,23 @@ class _SettingsPageState
       children: [
         const Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Categories',
-                style: TextStyle(
-                  fontWeight:
-                      FontWeight.w600,
-                  fontSize: 15,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
               ),
               SizedBox(height: 3),
               Text(
                 'Drag to change the order.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
         ),
         TextButton.icon(
           onPressed: _addCategory,
-          icon: const Icon(
-            Icons.add,
-            size: 19,
-          ),
+          icon: const Icon(Icons.add, size: 19),
           label: const Text('Add'),
         ),
       ],
@@ -696,83 +538,51 @@ class _SettingsPageState
   Widget _buildCategoriesList() {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(
-          color: Theme.of(context)
-              .dividerColor,
-        ),
-        borderRadius:
-            BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(12),
       ),
       clipBehavior: Clip.antiAlias,
       child: ReorderableListView.builder(
         shrinkWrap: true,
-        physics:
-            const NeverScrollableScrollPhysics(),
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: _categories.length,
         onReorder: _onReorder,
         buildDefaultDragHandles: false,
-        itemBuilder: (
-          context,
-          index,
-        ) {
-          final category =
-              _categories[index];
+        itemBuilder: (context, index) {
+          final category = _categories[index];
 
           return Column(
-            key: ValueKey(
-              '$category-$index',
-            ),
+            key: ValueKey('$category-$index'),
             children: [
-              if (index > 0)
-                const Divider(
-                  height: 1,
-                ),
+              if (index > 0) const Divider(height: 1),
               ListTile(
                 dense: true,
-                leading:
-                    ReorderableDragStartListener(
+                leading: ReorderableDragStartListener(
                   index: index,
                   child: const Icon(
-                    Icons
-                        .drag_indicator_rounded,
+                    Icons.drag_indicator_rounded,
                     color: Colors.grey,
                   ),
                 ),
                 title: Text(
                   category,
-                  style:
-                      const TextStyle(
-                    fontWeight:
-                        FontWeight.w500,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
                 trailing: Row(
-                  mainAxisSize:
-                      MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       tooltip: 'Edit',
-                      icon: const Icon(
-                        Icons.edit_outlined,
-                        size: 20,
-                      ),
+                      icon: const Icon(Icons.edit_outlined, size: 20),
                       onPressed: () {
-                        _editCategory(
-                          index,
-                        );
+                        _editCategory(index);
                       },
                     ),
                     IconButton(
                       tooltip: 'Delete',
-                      icon: const Icon(
-                        Icons
-                            .delete_outline,
-                        size: 20,
-                      ),
+                      icon: const Icon(Icons.delete_outline, size: 20),
                       onPressed: () {
-                        _deleteCategory(
-                          index,
-                        );
+                        _deleteCategory(index);
                       },
                     ),
                   ],
@@ -790,39 +600,71 @@ class _SettingsPageState
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        border: Border.all(
-          color: Theme.of(context)
-              .dividerColor,
-        ),
-        borderRadius:
-            BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.category_outlined,
-            size: 36,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.category_outlined, size: 36, color: Colors.grey),
           const SizedBox(height: 8),
           const Text(
             'No categories',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           TextButton(
             onPressed: _resetCategories,
-            child: const Text(
-              'Restore Defaults',
-            ),
+            child: const Text('Restore Defaults'),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildAppearanceSection() {
+    return _buildSection(
+      title: 'Appearance',
+      icon: Icons.palette_outlined,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(
+            Icons.dark_mode_outlined,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+        title: const Text(
+          'Dark Theme',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          'Use the dark royal theme throughout the app.',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        trailing: Switch(
+          value: ThemeController.instance.isDark,
+          onChanged: (value) async {
+            await ThemeController.instance.setDarkTheme(value);
+
+            if (!mounted) {
+              return;
+            }
+
+            setState(() {});
+          },
+        ),
+      ),
+    );
+  }
   // --------------------------------------------------
   // About
   // --------------------------------------------------
@@ -842,37 +684,25 @@ class _SettingsPageState
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              borderRadius:
-                  BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(18),
               gradient: LinearGradient(
-                begin:
-                    Alignment.topLeft,
-                end:
-                    Alignment.bottomRight,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  Theme.of(context)
-                      .colorScheme
-                      .primary,
-                  Theme.of(context)
-                      .colorScheme
-                      .secondary,
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.secondary,
                 ],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black
-                      .withValues(
-                    alpha: 0.12,
-                  ),
+                  color: Colors.black.withValues(alpha: 0.12),
                   blurRadius: 12,
-                  offset:
-                      const Offset(0, 5),
+                  offset: const Offset(0, 5),
                 ),
               ],
             ),
             child: const Icon(
-              Icons
-                  .sports_esports_rounded,
+              Icons.sports_esports_rounded,
               color: Colors.white,
               size: 38,
             ),
@@ -882,11 +712,7 @@ class _SettingsPageState
 
           const Text(
             'Name Place',
-            style: TextStyle(
-              fontSize: 21,
-              fontWeight:
-                  FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
           ),
 
           const SizedBox(height: 3),
@@ -895,43 +721,34 @@ class _SettingsPageState
             'A fun multiplayer word game',
             style: TextStyle(
               fontSize: 13,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
 
           const SizedBox(height: 18),
 
-          const Divider(
-            height: 1,
-          ),
+          const Divider(height: 1),
 
           const SizedBox(height: 14),
 
           _buildAboutRow(
             icon: Icons.person_outline,
             title: 'Developed by',
-            value:
-                'Gurmeet Singh Khalsa',
+            value: 'Gurmeet Singh Khalsa',
           ),
 
           const SizedBox(height: 13),
 
           _buildAboutRow(
-            icon: Icons
-                .phone_android_outlined,
+            icon: Icons.phone_android_outlined,
             title: 'App Version',
-            value: _appVersion.isEmpty
-                ? 'Loading...'
-                : _appVersion,
+            value: _appVersion.isEmpty ? 'Loading...' : _appVersion,
           ),
 
           if (_buildNumber.isNotEmpty) ...[
             const SizedBox(height: 13),
             _buildAboutRow(
-              icon:
-                  Icons.build_outlined,
+              icon: Icons.build_outlined,
               title: 'Build',
               value: _buildNumber,
             ),
@@ -954,42 +771,25 @@ class _SettingsPageState
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest,
-            borderRadius:
-                BorderRadius.circular(10),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
             size: 19,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
 
         const SizedBox(width: 12),
 
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-            ),
-          ),
-        ),
+        Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
 
         Flexible(
           child: Text(
             value,
-            textAlign:
-                TextAlign.right,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight:
-                  FontWeight.w600,
-            ),
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -1006,56 +806,33 @@ class _SettingsPageState
     required Widget child,
   }) {
     return Card(
-      clipBehavior:
-          Clip.antiAlias,
+      clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          14,
-          16,
-          16,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
                   width: 36,
                   height: 36,
-                  decoration:
-                      BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    )
-                        .colorScheme
-                        .primaryContainer,
-                    borderRadius:
-                        BorderRadius.circular(
-                      10,
-                    ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     icon,
                     size: 19,
-                    color: Theme.of(
-                      context,
-                    )
-                        .colorScheme
-                        .onPrimaryContainer,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                 ),
-                const SizedBox(
-                  width: 10,
-                ),
+                const SizedBox(width: 10),
                 Text(
                   title,
-                  style:
-                      const TextStyle(
+                  style: const TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
