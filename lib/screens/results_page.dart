@@ -1,14 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../models/player_score.dart';
 import '../models/player.dart';
 import '../models/player_answers.dart';
+import '../network/host_server.dart';
+import '../network/player_client.dart';
 
-class ResultsPage extends StatelessWidget {
+class ResultsPage extends StatefulWidget {
   final int round;
   final String letter;
   final List<Player> players;
   final Map<String, PlayerAnswers> submissions;
   final List<PlayerScore> scores;
+
+  final bool isHost;
+  final HostServer? hostServer;
+  final PlayerClient? playerClient;
+
   const ResultsPage({
     super.key,
     required this.round,
@@ -16,10 +26,65 @@ class ResultsPage extends StatelessWidget {
     required this.players,
     required this.submissions,
     required this.scores,
+    required this.isHost,
+    this.hostServer,
+    this.playerClient,
   });
 
+  @override
+  State<ResultsPage> createState() => _ResultsPageState();
+}
+
+class _ResultsPageState extends State<ResultsPage> {
+  late List<PlayerScore> _scores;
+
+  StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _scores = List<PlayerScore>.from(widget.scores);
+
+    if (widget.isHost && widget.hostServer != null) {
+      _resultsSubscription = widget.hostServer!.resultsStream.listen(
+        _handleUpdatedResults,
+      );
+    } else if (!widget.isHost && widget.playerClient != null) {
+      _resultsSubscription = widget.playerClient!.resultsStream.listen(
+        _handleUpdatedResults,
+      );
+    }
+  }
+
+  void _handleUpdatedResults(Map<String, dynamic> message) {
+    if (!mounted) {
+      return;
+    }
+
+    final rawScores = message['scores'];
+
+    if (rawScores is! List) {
+      return;
+    }
+
+    final updatedScores = <PlayerScore>[];
+
+    for (final value in rawScores) {
+      if (value is Map) {
+        updatedScores.add(
+          PlayerScore.fromJson(Map<String, dynamic>.from(value)),
+        );
+      }
+    }
+
+    setState(() {
+      _scores = updatedScores;
+    });
+  }
+
   PlayerScore? _scoreFor(String playerId) {
-    for (final score in scores) {
+    for (final score in _scores) {
       if (score.playerId == playerId) {
         return score;
       }
@@ -33,7 +98,7 @@ class ResultsPage extends StatelessWidget {
       return 'Host';
     }
 
-    for (final player in players) {
+    for (final player in widget.players) {
       if (player.id == playerId) {
         return player.name;
       }
@@ -44,11 +109,11 @@ class ResultsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = submissions.entries.toList();
+    final entries = widget.submissions.entries.toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Round $round Results'),
+        title: Text('Round ${widget.round} Results'),
         automaticallyImplyLeading: false,
       ),
       body: SafeArea(
@@ -93,22 +158,20 @@ class ResultsPage extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'ROUND $round',
+            'ROUND ${widget.round}',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               letterSpacing: 2,
             ),
           ),
-
           const SizedBox(height: 8),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('Letter:', style: TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
               Text(
-                letter,
+                widget.letter,
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
@@ -121,73 +184,72 @@ class ResultsPage extends StatelessWidget {
     );
   }
 
-Widget _buildPlayerCard(
-  BuildContext context,
-  String playerId,
-  PlayerAnswers submission,
-) {
-  final playerName = _playerName(playerId);
-  final playerScore = _scoreFor(playerId);
+  Widget _buildPlayerCard(
+    BuildContext context,
+    String playerId,
+    PlayerAnswers submission,
+  ) {
+    final playerName = _playerName(playerId);
+    final playerScore = _scoreFor(playerId);
 
-  return Card(
-    margin: const EdgeInsets.only(bottom: 14),
-    clipBehavior: Clip.antiAlias,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                child: Text(
-                  playerName.isNotEmpty
-                      ? playerName[0].toUpperCase()
-                      : '?',
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  child: Text(
+                    playerName.isNotEmpty ? playerName[0].toUpperCase() : '?',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    playerName,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${playerScore?.totalScore ?? 0} pts',
                   style: const TextStyle(
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Text(
-                  playerName,
-                  style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              Text(
-                '${playerScore?.totalScore ?? 0} pts',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-
-          const Divider(height: 24),
-
-          for (final answer in submission.answers.entries)
-            _buildAnswerRow(
-              answer.key,
-              answer.value,
-              playerScore?.categoryScores[answer.key] ?? 0,
+              ],
             ),
-        ],
+            const Divider(height: 24),
+            for (final answer in submission.answers.entries)
+              _buildAnswerRow(
+                context,
+                playerId,
+                answer.key,
+                answer.value,
+                playerScore?.categoryScores[answer.key] ?? 0,
+              ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  Widget _buildAnswerRow(String category, String answer, int points) {
+  Widget _buildAnswerRow(
+    BuildContext context,
+    String playerId,
+    String category,
+    String answer,
+    int points,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -200,9 +262,7 @@ Widget _buildPlayerCard(
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
-
           const SizedBox(width: 12),
-
           Expanded(
             child: Text(
               answer.isEmpty ? '—' : answer,
@@ -212,15 +272,150 @@ Widget _buildPlayerCard(
               ),
             ),
           ),
+          _buildScoreButton(context, playerId, category, points),
+        ],
+      ),
+    );
+  }
 
-          Text(
-            '+$points',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: points == 0 ? Colors.grey : null,
+  Widget _buildScoreButton(
+    BuildContext context,
+    String playerId,
+    String category,
+    int points,
+  ) {
+    if (!widget.isHost) {
+      return Text(
+        '+$points',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: points == 0 ? Colors.grey : null,
+        ),
+      );
+    }
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => _editScore(context, playerId, category, points),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '+$points',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: points == 0 ? Colors.grey : null,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.edit, size: 15),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editScore(
+    BuildContext context,
+    String playerId,
+    String category,
+    int currentScore,
+  ) async {
+    final score = await showModalBottomSheet<int>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Score: $category',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _scoreOption(
+                        context,
+                        playerId,
+                        category,
+                        0,
+                        currentScore,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _scoreOption(
+                        context,
+                        playerId,
+                        category,
+                        5,
+                        currentScore,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _scoreOption(
+                        context,
+                        playerId,
+                        category,
+                        10,
+                        currentScore,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
+        );
+      },
+    );
+
+    if (score == null) {
+      return;
+    }
+
+    widget.hostServer?.updateScore(
+      playerId: playerId,
+      category: category,
+      score: score,
+    );
+  }
+
+  Widget _scoreOption(
+    BuildContext context,
+    String playerId,
+    String category,
+    int score,
+    int currentScore,
+  ) {
+    final selected = score == currentScore;
+
+    return FilledButton(
+      onPressed: () {
+        Navigator.pop(context, score);
+      },
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 52),
+        backgroundColor: selected
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
+        foregroundColor: selected
+            ? Theme.of(context).colorScheme.onPrimary
+            : Theme.of(context).colorScheme.onSurface,
+      ),
+      child: Text(
+        '$score',
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -243,5 +438,11 @@ Widget _buildPlayerCard(
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _resultsSubscription?.cancel();
+    super.dispose();
   }
 }

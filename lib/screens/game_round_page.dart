@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:name_place/models/player_answers.dart';
 import 'package:name_place/models/player_score.dart';
 import '../models/player_answers.dart';
 import 'results_page.dart';
@@ -78,10 +77,6 @@ class _GameRoundPageState extends State<GameRoundPage> {
       );
     }
 
-    _resultsSubscription = widget.isHost
-        ? widget.hostServer?.resultsStream.listen(_onResults)
-        : widget.playerClient?.resultsStream.listen(_onResults);
-
     if (widget.isHost && widget.hostServer != null) {
       _resultsSubscription = widget.hostServer!.resultsStream.listen(
         _onResults,
@@ -153,6 +148,7 @@ class _GameRoundPageState extends State<GameRoundPage> {
     final letter = message['letter']?.toString() ?? '';
 
     final rawScores = message['scores'];
+
     final scores = <PlayerScore>[];
 
     if (rawScores is List) {
@@ -172,6 +168,9 @@ class _GameRoundPageState extends State<GameRoundPage> {
           players: widget.players,
           submissions: submissions,
           scores: scores,
+          isHost: widget.isHost,
+          hostServer: widget.hostServer,
+          playerClient: widget.playerClient,
         ),
       ),
     );

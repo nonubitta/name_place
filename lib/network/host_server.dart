@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+
 import 'package:name_place/models/player_answers.dart';
+
 import '../models/player_score.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -17,11 +19,12 @@ class HostServer {
 
   final Map<String, WebSocket> _connections = {};
   final Map<String, Player> _players = {};
+
   final StreamController<PlayerAnswers> _answersController =
       StreamController<PlayerAnswers>.broadcast();
 
   final Map<String, PlayerAnswers> _submittedAnswers = {};
-  bool _resultsBroadcasted = false;
+
   final StreamController<List<Player>> _playersController =
       StreamController<List<Player>>.broadcast();
 
@@ -31,17 +34,22 @@ class HostServer {
   final StreamController<Map<String, dynamic>> _resultsController =
       StreamController<Map<String, dynamic>>.broadcast();
 
-  Stream<Map<String, dynamic>> get resultsStream => _resultsController.stream;
+  Stream<Map<String, dynamic>> get resultsStream =>
+      _resultsController.stream;
 
   Stream<List<Player>> get playersStream => _playersController.stream;
 
-  Stream<void> get gameStartedStream => _gameStartedController.stream;
+  Stream<void> get gameStartedStream =>
+      _gameStartedController.stream;
 
-  Stream<PlayerAnswers> get answersStream => _answersController.stream;
+  Stream<PlayerAnswers> get answersStream =>
+      _answersController.stream;
 
   Map<String, PlayerAnswers> get submittedAnswers =>
       Map.unmodifiable(_submittedAnswers);
+
   String get roomCode => _roomCode;
+
   String _currentLetter = '';
   int _currentRound = 0;
   String _roomCode = '';
@@ -51,6 +59,12 @@ class HostServer {
   bool _gameStarted = false;
 
   bool get gameStarted => _gameStarted;
+
+  bool _resultsBroadcasted = false;
+
+  // Host overrides:
+  // playerId -> category -> manually assigned score
+  final Map<String, Map<String, int>> _scoreOverrides = {};
 
   Future<void> start({required String hostName}) async {
     await stop();
@@ -105,7 +119,10 @@ class HostServer {
   }
 
   void broadcastGameState(GameState state) {
-    final message = jsonEncode({'type': 'game_state', 'state': state.toJson()});
+    final message = jsonEncode({
+      'type': 'game_state',
+      'state': state.toJson(),
+    });
 
     for (final socket in _connections.values) {
       try {
@@ -153,7 +170,10 @@ class HostServer {
               break;
 
             case 'submit_answers':
-              _handleSubmitAnswers(playerId, message['answers']);
+              _handleSubmitAnswers(
+                playerId,
+                message['answers'],
+              );
               break;
 
             case 'leave':
@@ -176,7 +196,10 @@ class HostServer {
     );
   }
 
-  void _handleSubmitAnswers(String? playerId, dynamic rawAnswers) {
+  void _handleSubmitAnswers(
+    String? playerId,
+    dynamic rawAnswers,
+  ) {
     if (playerId == null || playerId.isEmpty) {
       return;
     }
@@ -185,7 +208,6 @@ class HostServer {
       return;
     }
 
-    // Don't allow a player to submit twice.
     if (_submittedAnswers.containsKey(playerId)) {
       return;
     }
@@ -212,17 +234,19 @@ class HostServer {
       _broadcastResults();
     }
 
-    _answersController.add(submission);
-
     final socket = _connections[playerId];
 
     if (socket != null) {
-      _send(socket, {'type': 'submission_received'});
+      _send(socket, {
+        'type': 'submission_received',
+      });
     }
 
     final player = _players[playerId];
 
-    print('Answers received from ${player?.name ?? playerId}: $answers');
+    print(
+      'Answers received from ${player?.name ?? playerId}: $answers',
+    );
   }
 
   void _removePlayer(String? playerId) {
@@ -231,6 +255,7 @@ class HostServer {
     }
 
     final player = _players.remove(playerId);
+
     _connections.remove(playerId);
     _submittedAnswers.remove(playerId);
 
@@ -242,9 +267,13 @@ class HostServer {
   }
 
   void _broadcastPlayers() {
-    final players = _players.values.map((player) => player.toJson()).toList();
+    final players =
+        _players.values.map((player) => player.toJson()).toList();
 
-    final message = jsonEncode({'type': 'players', 'players': players});
+    final message = jsonEncode({
+      'type': 'players',
+      'players': players,
+    });
 
     for (final socket in _connections.values) {
       try {
@@ -252,7 +281,9 @@ class HostServer {
       } catch (_) {}
     }
 
-    _playersController.add(List.unmodifiable(_players.values));
+    _playersController.add(
+      List.unmodifiable(_players.values),
+    );
 
     _updateDiscovery();
   }
@@ -266,36 +297,50 @@ class HostServer {
       final submission = _submittedAnswers[playerId]!;
 
       final categoryScores = <String, int>{};
+
       var total = 0;
 
       for (final category in submission.answers.keys) {
-        final answer = submission.answers[category]?.trim() ?? '';
+        final answer =
+            submission.answers[category]?.trim() ?? '';
+
+        int points;
 
         if (answer.isEmpty) {
-          categoryScores[category] = 0;
-          continue;
-        }
+          points = 0;
+        } else {
+          final normalizedAnswer = answer.toLowerCase();
 
-        final normalizedAnswer = answer.toLowerCase();
+          var matchingPlayers = 0;
 
-        var matchingPlayers = 0;
+          for (final otherPlayerId in playerIds) {
+            final otherSubmission =
+                _submittedAnswers[otherPlayerId];
 
-        for (final otherPlayerId in playerIds) {
-          final otherSubmission = _submittedAnswers[otherPlayerId];
+            if (otherSubmission == null) {
+              continue;
+            }
 
-          if (otherSubmission == null) {
-            continue;
+            final otherAnswer =
+                otherSubmission.answers[category]?.trim() ?? '';
+
+            if (otherAnswer.isNotEmpty &&
+                otherAnswer.toLowerCase() ==
+                    normalizedAnswer) {
+              matchingPlayers++;
+            }
           }
 
-          final otherAnswer = otherSubmission.answers[category]?.trim() ?? '';
-
-          if (otherAnswer.isNotEmpty &&
-              otherAnswer.toLowerCase() == normalizedAnswer) {
-            matchingPlayers++;
-          }
+          points = matchingPlayers > 1 ? 5 : 10;
         }
 
-        final points = matchingPlayers > 1 ? 5 : 10;
+        // Host override takes precedence over automatic score.
+        final override =
+            _scoreOverrides[playerId]?[category];
+
+        if (override != null) {
+          points = override;
+        }
 
         categoryScores[category] = points;
         total += points;
@@ -313,6 +358,27 @@ class HostServer {
     return scores;
   }
 
+  /// Called by the host to manually change one category score.
+  void updateScore({
+    required String playerId,
+    required String category,
+    required int score,
+  }) {
+    final safeScore = score < 0 ? 0 : score;
+
+    _scoreOverrides.putIfAbsent(
+      playerId,
+      () => <String, int>{},
+    )[category] = safeScore;
+
+    print(
+      'Score override: $playerId / $category = $safeScore',
+    );
+
+    // Recalculate and broadcast updated results.
+    _broadcastResults(force: true);
+  }
+
   void _updateDiscovery() {
     _discovery.startHost(
       roomCode: _roomCode,
@@ -321,18 +387,33 @@ class HostServer {
     );
   }
 
-  GameState startFirstRound({List<String>? categories}) {
+  GameState startFirstRound({
+    List<String>? categories,
+  }) {
     final random = Random.secure();
+
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-    final letter = letters[random.nextInt(letters.length)];
+    final letter =
+        letters[random.nextInt(letters.length)];
+
     _currentLetter = letter;
     _currentRound = 1;
-    final selectedCategories = categories == null || categories.isEmpty
-        ? <String>['Name', 'Place', 'Animal', 'Thing']
-        : List<String>.from(categories);
+
+    final selectedCategories =
+        categories == null || categories.isEmpty
+            ? <String>[
+                'Name',
+                'Place',
+                'Animal',
+                'Thing',
+              ]
+            : List<String>.from(categories);
 
     _submittedAnswers.clear();
+
+    _scoreOverrides.clear();
+
     _resultsBroadcasted = false;
 
     final state = GameState(
@@ -348,17 +429,24 @@ class HostServer {
     return state;
   }
 
-  GameState? startGame({List<String>? categories}) {
+  GameState? startGame({
+    List<String>? categories,
+  }) {
     if (_gameStarted) {
       return null;
     }
 
     _gameStarted = true;
 
-    return startFirstRound(categories: categories);
+    return startFirstRound(
+      categories: categories,
+    );
   }
 
-  void _send(WebSocket socket, Map<String, dynamic> message) {
+  void _send(
+    WebSocket socket,
+    Map<String, dynamic> message,
+  ) {
     socket.add(jsonEncode(message));
   }
 
@@ -375,16 +463,25 @@ class HostServer {
     _players.clear();
 
     _currentRound = 0;
+
     await _server?.close(force: true);
+
     _server = null;
 
     _gameStarted = false;
     _roomCode = '';
     _currentLetter = '';
+
+    _submittedAnswers.clear();
+    _scoreOverrides.clear();
+    _resultsBroadcasted = false;
+
     _playersController.add(const []);
   }
 
-  void submitHostAnswers(Map<String, String> answers) {
+  void submitHostAnswers(
+    Map<String, String> answers,
+  ) {
     if (_submittedAnswers.containsKey('host')) {
       return;
     }
@@ -406,8 +503,10 @@ class HostServer {
     }
   }
 
-  void _broadcastResults() {
-    if (_resultsBroadcasted) {
+  void _broadcastResults({
+    bool force = false,
+  }) {
+    if (_resultsBroadcasted && !force) {
       return;
     }
 
@@ -426,9 +525,11 @@ class HostServer {
       'round': _currentRound,
       'letter': _currentLetter,
       'answers': submissions,
-      'scores': scores.map((score) => score.toJson()).toList(),
+      'scores': scores
+          .map((score) => score.toJson())
+          .toList(),
     };
-    
+
     _resultsController.add(message);
 
     final encoded = jsonEncode(message);
@@ -439,7 +540,11 @@ class HostServer {
       } catch (_) {}
     }
 
-    print('All players submitted. Broadcasting results.');
+    print(
+      force
+          ? 'Broadcasting updated results.'
+          : 'All players submitted. Broadcasting results.',
+    );
   }
 
   void dispose() {
