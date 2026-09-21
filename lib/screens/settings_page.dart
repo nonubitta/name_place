@@ -1,71 +1,122 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../services/app_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({
+    super.key,
+  });
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  State<SettingsPage> createState() =>
+      _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
-  late final TextEditingController _nameController;
-  int _roundDuration = AppPreferences.defaultRoundDuration;
+class _SettingsPageState
+    extends State<SettingsPage> {
+  final TextEditingController _nameController =
+      TextEditingController();
+
   List<String> _categories = [];
+
+  int _roundDuration =
+      AppPreferences.defaultRoundDuration;
+
+  String _appVersion = '';
+  String _buildNumber = '';
+
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
 
-    _nameController = TextEditingController();
-
     _loadSettings();
+    _loadAppInfo();
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  // --------------------------------------------------
+  // Load settings
+  // --------------------------------------------------
+
   Future<void> _loadSettings() async {
-    final name = await AppPreferences.getPlayerName();
-    final categories = await AppPreferences.getCategories();
-    final roundDuration = await AppPreferences.getRoundDuration();
+    final playerName =
+        await AppPreferences.getPlayerName();
+
+    final categories =
+        await AppPreferences.getCategories();
+
+    final roundDuration =
+        await AppPreferences.getRoundDuration();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _nameController.text = name;
-      _categories = categories;
+      _nameController.text = playerName;
+      _categories = List<String>.from(
+        categories,
+      );
       _roundDuration = roundDuration;
       _loading = false;
     });
   }
 
-  Future<void> _saveName() async {
-    final name = _nameController.text.trim();
-
-    await AppPreferences.setPlayerName(name);
+  Future<void> _loadAppInfo() async {
+    final packageInfo =
+        await PackageInfo.fromPlatform();
 
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Name saved'),
-        duration: Duration(seconds: 1),
-      ),
+    setState(() {
+      _appVersion = packageInfo.version;
+      _buildNumber = packageInfo.buildNumber;
+    });
+  }
+
+  // --------------------------------------------------
+  // Player name
+  // --------------------------------------------------
+
+  Future<void> _savePlayerName() async {
+    await AppPreferences.setPlayerName(
+      _nameController.text,
     );
   }
 
-  Future<void> _saveCategories() async {
-    await AppPreferences.setCategories(_categories);
-  }
+  // --------------------------------------------------
+  // Categories
+  // --------------------------------------------------
 
   Future<void> _addCategory() async {
-    final category = await _showCategoryDialog(title: 'Add Category');
+    final category = await _showCategoryDialog(
+      title: 'Add Category',
+    );
 
     if (category == null) {
+      return;
+    }
+
+    final exists = _categories.any(
+      (item) =>
+          item.toLowerCase() ==
+          category.toLowerCase(),
+    );
+
+    if (exists) {
+      _showMessage(
+        'That category already exists.',
+      );
       return;
     }
 
@@ -73,17 +124,36 @@ class _SettingsPageState extends State<SettingsPage> {
       _categories.add(category);
     });
 
-    await _saveCategories();
+    await AppPreferences.setCategories(
+      _categories,
+    );
   }
 
-  Future<void> _editCategory(int index) async {
-    final category = await _showCategoryDialog(
+  Future<void> _editCategory(
+    int index,
+  ) async {
+    final category =
+        await _showCategoryDialog(
       title: 'Edit Category',
       initialValue: _categories[index],
-      editingIndex: index,
     );
 
     if (category == null) {
+      return;
+    }
+
+    final duplicateIndex =
+        _categories.indexWhere(
+      (item) =>
+          item.toLowerCase() ==
+          category.toLowerCase(),
+    );
+
+    if (duplicateIndex != -1 &&
+        duplicateIndex != index) {
+      _showMessage(
+        'That category already exists.',
+      );
       return;
     }
 
@@ -91,45 +161,29 @@ class _SettingsPageState extends State<SettingsPage> {
       _categories[index] = category;
     });
 
-    await _saveCategories();
+    await AppPreferences.setCategories(
+      _categories,
+    );
   }
 
-  Future<void> _deleteCategory(int index) async {
-    if (_categories.length == 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You need at least one category.')),
+  Future<void> _deleteCategory(
+    int index,
+  ) async {
+    if (_categories.length <= 1) {
+      _showMessage(
+        'At least one category is required.',
       );
-
       return;
     }
 
     final category = _categories[index];
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete Category?'),
-          content: Text('Remove "$category" from your game categories?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-              child: const Text('CANCEL'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-              child: const Text('DELETE'),
-            ),
-          ],
-        );
-      },
+    final confirmed =
+        await _showDeleteConfirmation(
+      category,
     );
 
-    if (confirmed != true) {
+    if (!confirmed) {
       return;
     }
 
@@ -137,278 +191,333 @@ class _SettingsPageState extends State<SettingsPage> {
       _categories.removeAt(index);
     });
 
-    await _saveCategories();
+    await AppPreferences.setCategories(
+      _categories,
+    );
   }
 
   Future<void> _resetCategories() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Reset Categories?'),
-          content: const Text(
-            'This will restore Name, Place, Animal and Thing.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-              child: const Text('CANCEL'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-              child: const Text('RESET'),
-            ),
-          ],
-        );
-      },
-    );
+    final confirmed =
+        await _showResetConfirmation();
 
-    if (confirmed != true) {
+    if (!confirmed) {
       return;
     }
 
     await AppPreferences.resetCategories();
+
+    final defaults =
+        await AppPreferences.getCategories();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _categories = List<String>.from(AppPreferences.defaultCategories);
+      _categories =
+          List<String>.from(defaults);
+    });
+  }
+
+  void _onReorder(
+    int oldIndex,
+    int newIndex,
+  ) {
+    setState(() {
+      if (oldIndex < newIndex) {
+        newIndex -= 1;
+      }
+
+      final item =
+          _categories.removeAt(oldIndex);
+
+      _categories.insert(
+        newIndex,
+        item,
+      );
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Categories reset'),
-        duration: Duration(seconds: 1),
-      ),
+    AppPreferences.setCategories(
+      _categories,
     );
   }
 
   Future<String?> _showCategoryDialog({
     required String title,
     String initialValue = '',
-    int? editingIndex,
   }) async {
-    final controller = TextEditingController(text: initialValue);
+    final controller =
+        TextEditingController(
+      text: initialValue,
+    );
 
-    String? error;
-
-    final result = await showDialog<String>(
+    final result =
+        await showDialog<String>(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(title),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                maxLength: 30,
-                decoration: InputDecoration(
-                  labelText: 'Category',
-                  hintText: 'e.g. Food',
-                  prefixIcon: const Icon(Icons.category_outlined),
-                  errorText: error,
-                ),
-                onChanged: (_) {
-                  if (error != null) {
-                    setDialogState(() {
-                      error = null;
-                    });
-                  }
-                },
-                onSubmitted: (_) {
-                  final value = controller.text.trim();
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization:
+                TextCapitalization.words,
+            decoration:
+                const InputDecoration(
+              labelText: 'Category',
+              hintText: 'Enter category name',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) {
+              final value =
+                  controller.text.trim();
 
-                  if (_validateCategory(value, editingIndex)) {
-                    Navigator.pop(context, value);
-                  } else {
-                    setDialogState(() {
-                      error = _categoryError(value, editingIndex);
-                    });
-                  }
-                },
-              ),
-            );
-          },
+              if (value.isNotEmpty) {
+                Navigator.pop(
+                  context,
+                  value,
+                );
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value =
+                    controller.text.trim();
+
+                if (value.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(
+                  context,
+                  value,
+                );
+              },
+              child: const Text('Save'),
+            ),
+          ],
         );
       },
     );
+
+    controller.dispose();
 
     return result;
   }
 
-  bool _validateCategory(String value, int? editingIndex) {
-    if (value.isEmpty) {
-      return false;
-    }
+  Future<bool> _showDeleteConfirmation(
+    String category,
+  ) async {
+    final result =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Category?',
+          ),
+          content: Text(
+            'Remove "$category" from your game categories?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
 
-    final normalized = value.toLowerCase();
-
-    for (var i = 0; i < _categories.length; i++) {
-      if (i == editingIndex) {
-        continue;
-      }
-
-      if (_categories[i].trim().toLowerCase() == normalized) {
-        return false;
-      }
-    }
-
-    return true;
+    return result ?? false;
   }
 
-  String _categoryError(String value, int? editingIndex) {
-    if (value.isEmpty) {
-      return 'Enter a category name';
-    }
+  Future<bool> _showResetConfirmation() async {
+    final result =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Reset Categories?',
+          ),
+          content: const Text(
+            'This will restore the default categories:\n\n'
+            'Name\n'
+            'Place\n'
+            'Animal\n'
+            'Thing',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              child: const Text('Reset'),
+            ),
+          ],
+        );
+      },
+    );
 
-    final normalized = value.toLowerCase();
-
-    for (var i = 0; i < _categories.length; i++) {
-      if (i == editingIndex) {
-        continue;
-      }
-
-      if (_categories[i].trim().toLowerCase() == normalized) {
-        return 'This category already exists';
-      }
-    }
-
-    return 'Invalid category';
+    return result ?? false;
   }
 
-  Future<void> _reorderCategories(int oldIndex, int newIndex) async {
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
+  // --------------------------------------------------
+  // Time / Round
+  // --------------------------------------------------
 
-    final category = _categories.removeAt(oldIndex);
+  Future<void> _setRoundDuration(
+    int seconds,
+  ) async {
+    setState(() {
+      _roundDuration = seconds;
+    });
 
-    _categories.insert(newIndex, category);
-
-    setState(() {});
-
-    await _saveCategories();
+    await AppPreferences.setRoundDuration(
+      seconds,
+    );
   }
+
+  // --------------------------------------------------
+  // Helpers
+  // --------------------------------------------------
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
+  }
+
+  // --------------------------------------------------
+  // UI
+  // --------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Settings'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        actions: [
-          IconButton(
-            tooltip: 'Save Name',
-            icon: const Icon(Icons.check),
-            onPressed: _saveName,
-          ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          16,
+          8,
+          16,
+          32,
+        ),
+        children: [
+          _buildPlayerSection(),
+          const SizedBox(height: 20),
+          _buildGameSettingsSection(),
+          const SizedBox(height: 24),
+          _buildAboutSection(),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              children: [
-                _buildPlayerSection(),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.timer_outlined),
-                    title: const Text('Time / Round'),
-                    subtitle: Text('$_roundDuration seconds'),
-                    trailing: DropdownButton<int>(
-                      value:
-                          AppPreferences.roundDurationOptions.contains(
-                            _roundDuration,
-                          )
-                          ? _roundDuration
-                          : AppPreferences.defaultRoundDuration,
-                      underline: const SizedBox(),
-                      items: AppPreferences.roundDurationOptions
-                          .map(
-                            (seconds) => DropdownMenuItem<int>(
-                              value: seconds,
-                              child: Text('$seconds sec'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) async {
-                        if (value == null) {
-                          return;
-                        }
-
-                        setState(() {
-                          _roundDuration = value;
-                        });
-
-                        await AppPreferences.setRoundDuration(value);
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                _buildCategoriesSection(),
-              ],
-            ),
     );
   }
+
+  // --------------------------------------------------
+  // Player section
+  // --------------------------------------------------
 
   Widget _buildPlayerSection() {
-    return _buildSectionCard(
-      icon: Icons.person_outline,
+    return _buildSection(
       title: 'Player',
-      subtitle: 'Your name shown to other players',
-      child: TextField(
-        controller: _nameController,
-        textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(
-          labelText: 'Name',
-          hintText: 'Enter your name',
-          prefixIcon: Icon(Icons.person_outline),
-          border: OutlineInputBorder(),
-        ),
-        onSubmitted: (_) => _saveName(),
-      ),
-    );
-  }
-
-  Widget _buildCategoriesSection() {
-    return _buildSectionCard(
-      icon: Icons.category_outlined,
-      title: 'Game Categories',
-      subtitle: 'Choose and arrange the categories used in each round.',
-      trailing: IconButton(
-        tooltip: 'Reset to defaults',
-        icon: const Icon(Icons.restart_alt),
-        onPressed: _resetCategories,
-      ),
+      icon: Icons.person_outline,
       child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 4),
-
-          if (_categories.isEmpty)
-            _buildEmptyCategories()
-          else
-            _buildCategoryList(),
-
-          const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _addCategory,
-              icon: const Icon(Icons.add),
-              label: const Text('ADD CATEGORY'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
+          const Text(
+            'Your name',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _nameController,
+            textCapitalization:
+                TextCapitalization.words,
+            textInputAction:
+                TextInputAction.done,
+            decoration: InputDecoration(
+              hintText: 'Enter your name',
+              prefixIcon: const Icon(
+                Icons.person_outline,
               ),
+              suffixIcon: IconButton(
+                tooltip: 'Save',
+                icon: const Icon(
+                  Icons.check_rounded,
+                ),
+                onPressed: _savePlayerName,
+              ),
+              border:
+                  const OutlineInputBorder(),
+            ),
+            onSubmitted: (_) {
+              _savePlayerName();
+            },
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'This name will be used when joining a game.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant,
             ),
           ),
         ],
@@ -416,134 +525,548 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildCategoryList() {
-    return ReorderableListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _categories.length,
-      onReorder: _reorderCategories,
-      buildDefaultDragHandles: false,
-      itemBuilder: (context, index) {
-        final category = _categories[index];
+  // --------------------------------------------------
+  // Game settings section
+  // --------------------------------------------------
 
-        return Container(
-          key: ValueKey('$category-$index'),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).dividerColor),
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildGameSettingsSection() {
+    return _buildSection(
+      title: 'Game Settings',
+      icon: Icons.tune_rounded,
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          _buildTimeRoundSetting(),
+
+          const SizedBox(height: 20),
+
+          _buildCategoriesHeader(),
+
+          const SizedBox(height: 8),
+
+          _categories.isEmpty
+              ? _buildEmptyCategories()
+              : _buildCategoriesList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeRoundSetting() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.45),
+        borderRadius:
+            BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .primaryContainer,
+              borderRadius:
+                  BorderRadius.circular(11),
+            ),
+            child: Icon(
+              Icons.timer_outlined,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onPrimaryContainer,
+            ),
           ),
-          child: ListTile(
-            leading: ReorderableDragStartListener(
-              index: index,
-              child: const Icon(Icons.drag_indicator),
-            ),
-            title: Text(
-              category,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text('Category ${index + 1}'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  tooltip: 'Edit',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => _editCategory(index),
+                const Text(
+                  'Time / Round',
+                  style: TextStyle(
+                    fontWeight:
+                        FontWeight.w600,
+                    fontSize: 15,
+                  ),
                 ),
-                IconButton(
-                  tooltip: 'Delete',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _deleteCategory(index),
+                const SizedBox(height: 3),
+                Text(
+                  'How long players have to answer each round.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
           ),
-        );
-      },
+          const SizedBox(width: 8),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              value: AppPreferences
+                      .roundDurationOptions
+                      .contains(
+                _roundDuration,
+              )
+                  ? _roundDuration
+                  : AppPreferences
+                      .defaultRoundDuration,
+              borderRadius:
+                  BorderRadius.circular(12),
+              items: AppPreferences
+                  .roundDurationOptions
+                  .map(
+                    (seconds) =>
+                        DropdownMenuItem<int>(
+                      value: seconds,
+                      child: Text(
+                        '$seconds sec',
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  _setRoundDuration(
+                    value,
+                  );
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoriesHeader() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Categories',
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+              SizedBox(height: 3),
+              Text(
+                'Drag to change the order.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        TextButton.icon(
+          onPressed: _addCategory,
+          icon: const Icon(
+            Icons.add,
+            size: 19,
+          ),
+          label: const Text('Add'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoriesList() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context)
+              .dividerColor,
+        ),
+        borderRadius:
+            BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ReorderableListView.builder(
+        shrinkWrap: true,
+        physics:
+            const NeverScrollableScrollPhysics(),
+        itemCount: _categories.length,
+        onReorder: _onReorder,
+        buildDefaultDragHandles: false,
+        itemBuilder: (
+          context,
+          index,
+        ) {
+          final category =
+              _categories[index];
+
+          return Column(
+            key: ValueKey(
+              '$category-$index',
+            ),
+            children: [
+              if (index > 0)
+                const Divider(
+                  height: 1,
+                ),
+              ListTile(
+                dense: true,
+                leading:
+                    ReorderableDragStartListener(
+                  index: index,
+                  child: const Icon(
+                    Icons
+                        .drag_indicator_rounded,
+                    color: Colors.grey,
+                  ),
+                ),
+                title: Text(
+                  category,
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.w500,
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Edit',
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        _editCategory(
+                          index,
+                        );
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Delete',
+                      icon: const Icon(
+                        Icons
+                            .delete_outline,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        _deleteCategory(
+                          index,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
   Widget _buildEmptyCategories() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(
+          color: Theme.of(context)
+              .dividerColor,
+        ),
+        borderRadius:
+            BorderRadius.circular(12),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.category_outlined, size: 40),
-          SizedBox(height: 8),
-          Text('No categories', style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 4),
-          Text(
-            'Add at least one category to play.',
-            textAlign: TextAlign.center,
+          const Icon(
+            Icons.category_outlined,
+            size: 36,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'No categories',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: _resetCategories,
+            child: const Text(
+              'Restore Defaults',
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionCard({
+  // --------------------------------------------------
+  // About
+  // --------------------------------------------------
+
+  Widget _buildAboutSection() {
+    return _buildSection(
+      title: 'About',
+      icon: Icons.info_outline_rounded,
+      child: Column(
+        children: [
+          const SizedBox(height: 4),
+
+          // App icon / logo placeholder.
+          // This does not depend on an asset being
+          // configured, so Settings won't break.
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              borderRadius:
+                  BorderRadius.circular(18),
+              gradient: LinearGradient(
+                begin:
+                    Alignment.topLeft,
+                end:
+                    Alignment.bottomRight,
+                colors: [
+                  Theme.of(context)
+                      .colorScheme
+                      .primary,
+                  Theme.of(context)
+                      .colorScheme
+                      .secondary,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black
+                      .withValues(
+                    alpha: 0.12,
+                  ),
+                  blurRadius: 12,
+                  offset:
+                      const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons
+                  .sports_esports_rounded,
+              color: Colors.white,
+              size: 38,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          const Text(
+            'Name Place',
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 3),
+
+          Text(
+            'A fun multiplayer word game',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          const Divider(
+            height: 1,
+          ),
+
+          const SizedBox(height: 14),
+
+          _buildAboutRow(
+            icon: Icons.person_outline,
+            title: 'Developed by',
+            value:
+                'Gurmeet Singh Khalsa',
+          ),
+
+          const SizedBox(height: 13),
+
+          _buildAboutRow(
+            icon: Icons
+                .phone_android_outlined,
+            title: 'App Version',
+            value: _appVersion.isEmpty
+                ? 'Loading...'
+                : _appVersion,
+          ),
+
+          if (_buildNumber.isNotEmpty) ...[
+            const SizedBox(height: 13),
+            _buildAboutRow(
+              icon:
+                  Icons.build_outlined,
+              title: 'Build',
+              value: _buildNumber,
+            ),
+          ],
+
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAboutRow({
     required IconData icon,
     required String title,
-    required String subtitle,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest,
+            borderRadius:
+                BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            size: 19,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurfaceVariant,
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+            ),
+          ),
+        ),
+
+        Flexible(
+          child: Text(
+            value,
+            textAlign:
+                TextAlign.right,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight:
+                  FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --------------------------------------------------
+  // Generic section container
+  // --------------------------------------------------
+
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
     required Widget child,
-    Widget? trailing,
   }) {
     return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
+      clipBehavior:
+          Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(
+          16,
+          14,
+          16,
+          16,
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
+                  width: 36,
+                  height: 36,
+                  decoration:
+                      BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    )
+                        .colorScheme
+                        .primaryContainer,
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
                   ),
-                  child: Icon(icon),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                  child: Icon(
+                    icon,
+                    size: 19,
+                    color: Theme.of(
+                      context,
+                    )
+                        .colorScheme
+                        .onPrimaryContainer,
                   ),
                 ),
-                if (trailing != null) trailing,
+                const SizedBox(
+                  width: 10,
+                ),
+                Text(
+                  title,
+                  style:
+                      const TextStyle(
+                    fontSize: 18,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
               ],
             ),
+
             const SizedBox(height: 16),
+
             child,
           ],
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
   }
 }
