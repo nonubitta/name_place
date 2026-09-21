@@ -168,6 +168,8 @@ class PlayerClient {
         case 'round_results':
           final results = Map<String, dynamic>.from(message);
 
+          _updateTotalScores(results);
+
           unawaited(GameHistoryService.saveRoundResults(results));
 
           _resultsController.add(results);

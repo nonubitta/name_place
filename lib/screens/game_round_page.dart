@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:name_place/models/player_score.dart';
-
+import 'final_scoreboard_page.dart';
 import '../models/player_answers.dart';
 import 'results_page.dart';
 import '../models/game_state.dart';
@@ -44,7 +44,7 @@ class _GameRoundPageState extends State<GameRoundPage> {
   StreamSubscription<PlayerAnswers>? _answersSubscription;
 
   StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
-
+  StreamSubscription<void>? _gameEndedSubscription;
   final Map<String, TextEditingController> _controllers = {};
 
   final Set<String> _submittedPlayerIds = {};
@@ -106,6 +106,22 @@ class _GameRoundPageState extends State<GameRoundPage> {
       _resultsSubscription = widget.playerClient!.resultsStream.listen(
         _onResults,
       );
+
+      _gameEndedSubscription = widget.playerClient!.gameEndedStream.listen((_) {
+        if (!mounted) {
+          return;
+        }
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FinalScoreboardPage(
+              players: widget.players,
+              totalScores: widget.playerClient!.totalScores,
+            ),
+          ),
+        );
+      });
     }
   }
 
@@ -162,13 +178,25 @@ class _GameRoundPageState extends State<GameRoundPage> {
       return;
     }
 
-    await widget.hostServer?.stop();
+    final totalScores = <String, int>{};
+
+    totalScores.addAll(widget.hostServer?.totalScores ?? {});
+
+    await widget.hostServer?.endGame();
 
     if (!mounted) {
       return;
     }
 
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FinalScoreboardPage(
+          players: widget.players,
+          totalScores: totalScores,
+        ),
+      ),
+    );
   }
 
   void _createControllers() {
@@ -353,6 +381,7 @@ class _GameRoundPageState extends State<GameRoundPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _gameEndedSubscription?.cancel();
     _gameSubscription?.cancel();
     _answersSubscription?.cancel();
     _submissionSubscription?.cancel();

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
+import 'final_scoreboard_page.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../models/player_answers.dart';
@@ -55,31 +55,37 @@ class _ResultsPageState extends State<ResultsPage> {
     _scores = List<PlayerScore>.from(widget.scores);
 
     if (widget.isHost && widget.hostServer != null) {
-      _resultsSubscription =
-          widget.hostServer!.resultsStream.listen(
+      _resultsSubscription = widget.hostServer!.resultsStream.listen(
         _handleUpdatedResults,
       );
     } else if (!widget.isHost && widget.playerClient != null) {
-      _resultsSubscription =
-          widget.playerClient!.resultsStream.listen(
+      _resultsSubscription = widget.playerClient!.resultsStream.listen(
         _handleUpdatedResults,
       );
 
-      _gameStateSubscription =
-          widget.playerClient!.gameStateStream.listen(
+      _gameStateSubscription = widget.playerClient!.gameStateStream.listen(
         _handleGameState,
       );
     }
 
     if (!widget.isHost && widget.playerClient != null) {
-      _gameEndedSubscription =
-          widget.playerClient!.gameEndedStream.listen((_) {
+      _gameEndedSubscription = widget.playerClient!.gameEndedStream.listen((_) {
         if (!mounted) {
           return;
         }
 
-        Navigator.of(context).popUntil(
-          (route) => route.isFirst,
+        final totalScores = <String, int>{};
+
+        totalScores.addAll(widget.playerClient!.totalScores);
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FinalScoreboardPage(
+              players: widget.players,
+              totalScores: totalScores,
+            ),
+          ),
         );
       });
     }
@@ -112,8 +118,7 @@ class _ResultsPageState extends State<ResultsPage> {
       return;
     }
 
-    final nextState =
-        widget.hostServer!.startNextRound();
+    final nextState = widget.hostServer!.startNextRound();
 
     Navigator.pushReplacement(
       context,
@@ -128,9 +133,7 @@ class _ResultsPageState extends State<ResultsPage> {
     );
   }
 
-  void _handleUpdatedResults(
-    Map<String, dynamic> message,
-  ) {
+  void _handleUpdatedResults(Map<String, dynamic> message) {
     if (!mounted) {
       return;
     }
@@ -146,9 +149,7 @@ class _ResultsPageState extends State<ResultsPage> {
     for (final value in rawScores) {
       if (value is Map) {
         updatedScores.add(
-          PlayerScore.fromJson(
-            Map<String, dynamic>.from(value),
-          ),
+          PlayerScore.fromJson(Map<String, dynamic>.from(value)),
         );
       }
     }
@@ -193,9 +194,7 @@ class _ResultsPageState extends State<ResultsPage> {
         builder: (context) {
           return AlertDialog(
             title: const Text('Exit Game?'),
-            content: const Text(
-              'This will end the game for everyone.',
-            ),
+            content: const Text('This will end the game for everyone.'),
             actions: [
               TextButton(
                 onPressed: () {
@@ -218,71 +217,65 @@ class _ResultsPageState extends State<ResultsPage> {
         return;
       }
 
+      final totalScores = <String, int>{};
+
+      totalScores.addAll(widget.hostServer?.totalScores ?? {});
+
       await widget.hostServer?.endGame();
 
       if (!mounted) {
         return;
       }
 
-      Navigator.of(context).popUntil(
-        (route) => route.isFirst,
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FinalScoreboardPage(
+            players: widget.players,
+            totalScores: totalScores,
+          ),
+        ),
       );
 
       return;
     }
 
-    Navigator.of(context).popUntil(
-      (route) => route.isFirst,
-    );
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
   Widget build(BuildContext context) {
-    final entries =
-        widget.submissions.entries.toList();
+    final entries = widget.submissions.entries.toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Round ${widget.round} Results',
-        ),
+        title: Text('Round ${widget.round} Results'),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            tooltip: _groupByCategory
-                ? 'Group by player'
-                : 'Group by category',
+            tooltip: _groupByCategory ? 'Group by player' : 'Group by category',
             icon: Icon(
-              _groupByCategory
-                  ? Icons.person_outline
-                  : Icons.category_outlined,
+              _groupByCategory ? Icons.person_outline : Icons.category_outlined,
             ),
             onPressed: () {
               setState(() {
-                _groupByCategory =
-                    !_groupByCategory;
+                _groupByCategory = !_groupByCategory;
               });
             },
           ),
           IconButton(
             tooltip: 'Scoreboard',
-            icon: const Icon(
-              Icons.leaderboard_outlined,
-            ),
+            icon: const Icon(Icons.leaderboard_outlined),
             onPressed: _openScoreboard,
           ),
           IconButton(
             tooltip: 'Settings',
-            icon: const Icon(
-              Icons.settings_outlined,
-            ),
+            icon: const Icon(Icons.settings_outlined),
             onPressed: _openSettings,
           ),
           IconButton(
             tooltip: 'Exit Game',
-            icon: const Icon(
-              Icons.exit_to_app,
-            ),
+            icon: const Icon(Icons.exit_to_app),
             onPressed: _exitGame,
           ),
         ],
@@ -297,14 +290,12 @@ class _ResultsPageState extends State<ResultsPage> {
                   ? const Center(
                       child: Text(
                         'No submissions.',
-                        style: TextStyle(
-                          fontSize: 18,
-                        ),
+                        style: TextStyle(fontSize: 18),
                       ),
                     )
                   : _groupByCategory
-                      ? _buildCategoryView()
-                      : _buildPlayerView(entries),
+                  ? _buildCategoryView()
+                  : _buildPlayerView(entries),
             ),
 
             _buildBottomBar(context),
@@ -314,25 +305,14 @@ class _ResultsPageState extends State<ResultsPage> {
     );
   }
 
-  Widget _buildPlayerView(
-    List<MapEntry<String, PlayerAnswers>> entries,
-  ) {
+  Widget _buildPlayerView(List<MapEntry<String, PlayerAnswers>> entries) {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        24,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
 
-        return _buildPlayerCard(
-          context,
-          entry.key,
-          entry.value,
-        );
+        return _buildPlayerCard(context, entry.key, entry.value);
       },
     );
   }
@@ -340,10 +320,8 @@ class _ResultsPageState extends State<ResultsPage> {
   Widget _buildCategoryView() {
     final categories = <String>[];
 
-    for (final submission
-        in widget.submissions.values) {
-      for (final category
-          in submission.answers.keys) {
+    for (final submission in widget.submissions.values) {
+      for (final category in submission.answers.keys) {
         if (!categories.contains(category)) {
           categories.add(category);
         }
@@ -351,12 +329,7 @@ class _ResultsPageState extends State<ResultsPage> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        24,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemCount: categories.length,
       itemBuilder: (context, index) {
         final category = categories[index];
@@ -368,38 +341,25 @@ class _ResultsPageState extends State<ResultsPage> {
 
   Widget _buildCategoryCard(String category) {
     return Card(
-      margin: const EdgeInsets.only(
-        bottom: 14,
-      ),
+      margin: const EdgeInsets.only(bottom: 14),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          12,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               category,
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
             ),
 
             const Divider(height: 24),
 
-            for (final entry
-                in widget.submissions.entries)
+            for (final entry in widget.submissions.entries)
               _buildCategoryAnswerRow(
                 entry.key,
                 category,
-                entry.value.answers[category] ??
-                    '',
+                entry.value.answers[category] ?? '',
               ),
           ],
         ),
@@ -412,40 +372,26 @@ class _ResultsPageState extends State<ResultsPage> {
     String category,
     String answer,
   ) {
-    final playerName =
-        _playerName(playerId);
+    final playerName = _playerName(playerId);
 
-    final playerScore =
-        _scoreFor(playerId);
+    final playerScore = _scoreFor(playerId);
 
-    final points =
-        playerScore?.categoryScores[category] ??
-            0;
+    final points = playerScore?.categoryScores[category] ?? 0;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
               '$playerName: '
               '${answer.isEmpty ? '—' : answer}',
-              style: const TextStyle(
-                fontSize: 16,
-              ),
+              style: const TextStyle(fontSize: 16),
             ),
           ),
 
-          _buildScoreButton(
-            context,
-            playerId,
-            category,
-            points,
-          ),
+          _buildScoreButton(context, playerId, category, points),
         ],
       ),
     );
@@ -454,25 +400,17 @@ class _ResultsPageState extends State<ResultsPage> {
   void _openScoreboard() {
     final totalScores = <String, int>{};
 
-    if (widget.isHost &&
-        widget.hostServer != null) {
-      totalScores.addAll(
-        widget.hostServer!.totalScores,
-      );
-    } else if (!widget.isHost &&
-        widget.playerClient != null) {
-      totalScores.addAll(
-        widget.playerClient!.totalScores,
-      );
+    if (widget.isHost && widget.hostServer != null) {
+      totalScores.addAll(widget.hostServer!.totalScores);
+    } else if (!widget.isHost && widget.playerClient != null) {
+      totalScores.addAll(widget.playerClient!.totalScores);
     }
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ScoreboardPage(
-          players: widget.players,
-          totalScores: totalScores,
-        ),
+        builder: (_) =>
+            ScoreboardPage(players: widget.players, totalScores: totalScores),
       ),
     );
   }
@@ -480,46 +418,28 @@ class _ResultsPageState extends State<ResultsPage> {
   void _openSettings() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const SettingsPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
     );
   }
 
-  Widget _buildRoundHeader(
-    BuildContext context,
-  ) {
+  Widget _buildRoundHeader(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        20,
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       child: Column(
         children: [
           Text(
             'ROUND ${widget.round}',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'Letter:',
-                style: TextStyle(
-                  fontSize: 18,
-                ),
-              ),
+              const Text('Letter:', style: TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
               Text(
                 widget.letter,
@@ -540,40 +460,25 @@ class _ResultsPageState extends State<ResultsPage> {
     String playerId,
     PlayerAnswers submission,
   ) {
-    final playerName =
-        _playerName(playerId);
+    final playerName = _playerName(playerId);
 
-    final playerScore =
-        _scoreFor(playerId);
+    final playerScore = _scoreFor(playerId);
 
     return Card(
-      margin: const EdgeInsets.only(
-        bottom: 14,
-      ),
+      margin: const EdgeInsets.only(bottom: 14),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          12,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 CircleAvatar(
                   radius: 20,
                   child: Text(
-                    playerName.isNotEmpty
-                        ? playerName[0]
-                            .toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    playerName.isNotEmpty ? playerName[0].toUpperCase() : '?',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -597,17 +502,13 @@ class _ResultsPageState extends State<ResultsPage> {
             ),
             const Divider(height: 24),
 
-            for (final answer
-                in submission.answers.entries)
+            for (final answer in submission.answers.entries)
               _buildAnswerRow(
                 context,
                 playerId,
                 answer.key,
                 answer.value,
-                playerScore
-                        ?.categoryScores[
-                    answer.key] ??
-                    0,
+                playerScore?.categoryScores[answer.key] ?? 0,
               ),
           ],
         ),
@@ -623,42 +524,28 @@ class _ResultsPageState extends State<ResultsPage> {
     int points,
   ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 90,
             child: Text(
               category,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              answer.isEmpty
-                  ? '—'
-                  : answer,
+              answer.isEmpty ? '—' : answer,
               style: TextStyle(
                 fontSize: 16,
-                color: answer.isEmpty
-                    ? Colors.grey
-                    : null,
+                color: answer.isEmpty ? Colors.grey : null,
               ),
             ),
           ),
-          _buildScoreButton(
-            context,
-            playerId,
-            category,
-            points,
-          ),
+          _buildScoreButton(context, playerId, category, points),
         ],
       ),
     );
@@ -675,26 +562,16 @@ class _ResultsPageState extends State<ResultsPage> {
         '+$points',
         style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: points == 0
-              ? Colors.grey
-              : null,
+          color: points == 0 ? Colors.grey : null,
         ),
       );
     }
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: () => _editScore(
-        context,
-        playerId,
-        category,
-        points,
-      ),
+      onTap: () => _editScore(context, playerId, category, points),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 6,
-          vertical: 3,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -702,16 +579,11 @@ class _ResultsPageState extends State<ResultsPage> {
               '+$points',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: points == 0
-                    ? Colors.grey
-                    : null,
+                color: points == 0 ? Colors.grey : null,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(
-              Icons.edit,
-              size: 15,
-            ),
+            const Icon(Icons.edit, size: 15),
           ],
         ),
       ),
@@ -724,18 +596,12 @@ class _ResultsPageState extends State<ResultsPage> {
     String category,
     int currentScore,
   ) async {
-    final score =
-        await showModalBottomSheet<int>(
+    final score = await showModalBottomSheet<int>(
       context: context,
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              16,
-              20,
-              20,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -805,44 +671,29 @@ class _ResultsPageState extends State<ResultsPage> {
     int score,
     int currentScore,
   ) {
-    final selected =
-        score == currentScore;
+    final selected = score == currentScore;
 
     return FilledButton(
       onPressed: () {
         Navigator.pop(context, score);
       },
       style: FilledButton.styleFrom(
-        minimumSize:
-            const Size(0, 52),
+        minimumSize: const Size(0, 52),
         backgroundColor: selected
-            ? Theme.of(context)
-                .colorScheme
-                .primary
-            : Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest,
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         foregroundColor: selected
-            ? Theme.of(context)
-                .colorScheme
-                .onPrimary
-            : Theme.of(context)
-                .colorScheme
-                .onSurface,
+            ? Theme.of(context).colorScheme.onPrimary
+            : Theme.of(context).colorScheme.onSurface,
       ),
       child: Text(
         '$score',
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  Widget _buildBottomBar(
-    BuildContext context,
-  ) {
+  Widget _buildBottomBar(BuildContext context) {
     if (!widget.isHost) {
       return const SizedBox.shrink();
     }
@@ -850,12 +701,7 @@ class _ResultsPageState extends State<ResultsPage> {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          8,
-          16,
-          16,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: SizedBox(
           width: double.infinity,
           height: 52,
@@ -863,10 +709,7 @@ class _ResultsPageState extends State<ResultsPage> {
             onPressed: _nextRound,
             child: const Text(
               'NEXT ROUND',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
             ),
           ),
         ),
