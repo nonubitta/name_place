@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../models/player_score.dart';
 import '../models/player.dart';
 import '../models/player_answers.dart';
 
@@ -8,14 +8,25 @@ class ResultsPage extends StatelessWidget {
   final String letter;
   final List<Player> players;
   final Map<String, PlayerAnswers> submissions;
-
+  final List<PlayerScore> scores;
   const ResultsPage({
     super.key,
     required this.round,
     required this.letter,
     required this.players,
     required this.submissions,
+    required this.scores,
   });
+
+  PlayerScore? _scoreFor(String playerId) {
+    for (final score in scores) {
+      if (score.playerId == playerId) {
+        return score;
+      }
+    }
+
+    return null;
+  }
 
   String _playerName(String playerId) {
     if (playerId == 'host') {
@@ -54,12 +65,7 @@ class ResultsPage extends StatelessWidget {
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(
-                        16,
-                        8,
-                        16,
-                        24,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       itemCount: entries.length,
                       itemBuilder: (context, index) {
                         final entry = entries[index];
@@ -89,9 +95,9 @@ class ResultsPage extends StatelessWidget {
           Text(
             'ROUND $round',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+            ),
           ),
 
           const SizedBox(height: 8),
@@ -99,12 +105,7 @@ class ResultsPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'Letter:',
-                style: TextStyle(
-                  fontSize: 18,
-                ),
-              ),
+              const Text('Letter:', style: TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
               Text(
                 letter,
@@ -120,74 +121,73 @@ class ResultsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPlayerCard(
-    BuildContext context,
-    String playerId,
-    PlayerAnswers submission,
-  ) {
-    final playerName = _playerName(playerId);
+Widget _buildPlayerCard(
+  BuildContext context,
+  String playerId,
+  PlayerAnswers submission,
+) {
+  final playerName = _playerName(playerId);
+  final playerScore = _scoreFor(playerId);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  child: Text(
-                    playerName.isNotEmpty
-                        ? playerName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                Expanded(
-                  child: Text(
-                    playerName,
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-
-                const Text(
-                  '0 pts',
-                  style: TextStyle(
-                    fontSize: 16,
+  return Card(
+    margin: const EdgeInsets.only(bottom: 14),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                child: Text(
+                  playerName.isNotEmpty
+                      ? playerName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
-            ),
-
-            const Divider(height: 24),
-
-            for (final answer in submission.answers.entries)
-              _buildAnswerRow(
-                answer.key,
-                answer.value,
               ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildAnswerRow(
-    String category,
-    String answer,
-  ) {
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Text(
+                  playerName,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              Text(
+                '${playerScore?.totalScore ?? 0} pts',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const Divider(height: 24),
+
+          for (final answer in submission.answers.entries)
+            _buildAnswerRow(
+              answer.key,
+              answer.value,
+              playerScore?.categoryScores[answer.key] ?? 0,
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+  Widget _buildAnswerRow(String category, String answer, int points) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -197,9 +197,7 @@ class ResultsPage extends StatelessWidget {
             width: 90,
             child: Text(
               category,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
 
@@ -212,6 +210,14 @@ class ResultsPage extends StatelessWidget {
                 fontSize: 16,
                 color: answer.isEmpty ? Colors.grey : null,
               ),
+            ),
+          ),
+
+          Text(
+            '+$points',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: points == 0 ? Colors.grey : null,
             ),
           ),
         ],
@@ -231,10 +237,7 @@ class ResultsPage extends StatelessWidget {
             onPressed: null,
             child: const Text(
               'NEXT ROUND',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
             ),
           ),
         ),

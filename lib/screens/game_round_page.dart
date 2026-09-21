@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:name_place/models/player_answers.dart';
+import 'package:name_place/models/player_score.dart';
 import '../models/player_answers.dart';
 import 'results_page.dart';
 import '../models/game_state.dart';
@@ -151,6 +152,17 @@ class _GameRoundPageState extends State<GameRoundPage> {
 
     final letter = message['letter']?.toString() ?? '';
 
+    final rawScores = message['scores'];
+    final scores = <PlayerScore>[];
+
+    if (rawScores is List) {
+      for (final value in rawScores) {
+        if (value is Map) {
+          scores.add(PlayerScore.fromJson(Map<String, dynamic>.from(value)));
+        }
+      }
+    }
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -159,6 +171,7 @@ class _GameRoundPageState extends State<GameRoundPage> {
           letter: letter,
           players: widget.players,
           submissions: submissions,
+          scores: scores,
         ),
       ),
     );
