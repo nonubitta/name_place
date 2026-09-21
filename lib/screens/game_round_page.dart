@@ -1,8 +1,8 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:name_place/models/player_answers.dart';
-
+import '../models/player_answers.dart';
+import 'results_page.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../network/host_server.dart';
@@ -35,6 +35,7 @@ class _GameRoundPageState extends State<GameRoundPage> {
   StreamSubscription<GameState>? _gameSubscription;
   StreamSubscription<void>? _submissionSubscription;
   StreamSubscription<PlayerAnswers>? _answersSubscription;
+  StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
   final Map<String, TextEditingController> _controllers = {};
   final Set<String> _submittedPlayerIds = {};
 
@@ -75,6 +76,20 @@ class _GameRoundPageState extends State<GameRoundPage> {
         _onPlayerSubmitted,
       );
     }
+
+    _resultsSubscription = widget.isHost
+        ? widget.hostServer?.resultsStream.listen(_onResults)
+        : widget.playerClient?.resultsStream.listen(_onResults);
+
+    if (widget.isHost && widget.hostServer != null) {
+      _resultsSubscription = widget.hostServer!.resultsStream.listen(
+        _onResults,
+      );
+    } else if (!widget.isHost && widget.playerClient != null) {
+      _resultsSubscription = widget.playerClient!.resultsStream.listen(
+        _onResults,
+      );
+    }
   }
 
   void _createControllers() {
@@ -109,6 +124,43 @@ class _GameRoundPageState extends State<GameRoundPage> {
     print(
       'Submission received: '
       '${submission.playerId} -> ${submission.answers}',
+    );
+  }
+
+  void _onResults(Map<String, dynamic> message) {
+    if (!mounted) {
+      return;
+    }
+
+    final rawAnswers = message['answers'];
+
+    final submissions = <String, PlayerAnswers>{};
+
+    if (rawAnswers is Map) {
+      rawAnswers.forEach((playerId, value) {
+        if (value is Map) {
+          submissions[playerId.toString()] = PlayerAnswers.fromJson(
+            Map<String, dynamic>.from(value),
+          );
+        }
+      });
+    }
+
+    final round =
+        int.tryParse(message['round']?.toString() ?? '') ?? _gameState.round;
+
+    final letter = message['letter']?.toString() ?? '';
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultsPage(
+          round: round,
+          letter: letter,
+          players: widget.players,
+          submissions: submissions,
+        ),
+      ),
     );
   }
 
@@ -185,6 +237,8 @@ class _GameRoundPageState extends State<GameRoundPage> {
 
     super.dispose();
     _submissionSubscription?.cancel();
+
+    _resultsSubscription?.cancel();
   }
 
   @override

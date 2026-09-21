@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import '../models/game_state.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-
+import '../models/player_answers.dart';
 import '../models/player.dart';
 
 class PlayerClient {
@@ -23,6 +23,9 @@ class PlayerClient {
   final StreamController<void> _submissionReceivedController =
       StreamController<void>.broadcast();
 
+  final StreamController<Map<String, dynamic>> _resultsController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
   Stream<GameState> get gameStateStream => _gameStateController.stream;
 
   List<Player> _latestPlayers = [];
@@ -40,6 +43,7 @@ class PlayerClient {
   Stream<void> get submissionReceivedStream =>
       _submissionReceivedController.stream;
 
+  Stream<Map<String, dynamic>> get resultsStream => _resultsController.stream;
   bool get isConnected => _channel != null;
 
   Future<void> connect({
@@ -150,6 +154,13 @@ class PlayerClient {
           _submissionReceivedController.add(null);
           break;
 
+        case 'round_results':
+          print('Round results received');
+
+          _resultsController.add(Map<String, dynamic>.from(message));
+
+          break;
+
         default:
           print('Unknown server message type: $type');
       }
@@ -223,5 +234,6 @@ class PlayerClient {
     _gameStartedController.close();
     _gameStateController.close();
     _submissionReceivedController.close();
+    _resultsController.close();
   }
 }
