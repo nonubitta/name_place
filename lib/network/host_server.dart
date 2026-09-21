@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:name_place/models/player_answers.dart';
-
+import '../services/game_history_service.dart';
 import '../models/player_score.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -78,6 +78,11 @@ class HostServer {
 
     _hostName = hostName;
     _roomCode = _generateRoomCode();
+
+    await GameHistoryService.startGame(
+      gameId: _roomCode,
+      players: [Player(id: 'host', name: _hostName)],
+    );
 
     _server = await HttpServer.bind(
       InternetAddress.anyIPv4,
@@ -268,6 +273,13 @@ class HostServer {
       {'id': 'host', 'name': _hostName},
       ..._players.values.map((player) => player.toJson()),
     ];
+
+    unawaited(
+      GameHistoryService.updatePlayers(
+        gameId: _roomCode,
+        players: players.map((json) => Player.fromJson(json)).toList(),
+      ),
+    );
 
     final message = jsonEncode({'type': 'players', 'players': players});
 
@@ -557,6 +569,10 @@ class HostServer {
       'scores': scores.map((score) => score.toJson()).toList(),
       'totalScores': _totalScores,
     };
+
+    unawaited(
+      GameHistoryService.saveRoundResults(Map<String, dynamic>.from(message)),
+    );
 
     _resultsController.add(message);
 

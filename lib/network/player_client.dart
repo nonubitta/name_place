@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-
+import '../services/game_history_service.dart';
 import '../models/game_state.dart';
-import '../models/player_answers.dart';
 import '../models/player.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -52,7 +51,8 @@ class PlayerClient {
   Stream<Map<String, dynamic>> get resultsStream => _resultsController.stream;
 
   bool get isConnected => _channel != null;
-
+  String _playerId = '';
+  String _playerName = '';
   final Map<String, int> _totalScores = {};
 
   Map<String, int> get totalScores => Map.unmodifiable(_totalScores);
@@ -63,7 +63,8 @@ class PlayerClient {
     required String playerName,
   }) async {
     await disconnect();
-
+    _playerId = playerId;
+    _playerName = playerName;
     final url = Uri.parse('ws://$host:4040/ws');
 
     _statusController.add('Connecting...');
@@ -165,12 +166,11 @@ class PlayerClient {
           break;
 
         case 'round_results':
-          print('Round results received');
+          final results = Map<String, dynamic>.from(message);
 
-          _updateTotalScores(message);
+          unawaited(GameHistoryService.saveRoundResults(results));
 
-          _resultsController.add(Map<String, dynamic>.from(message));
-
+          _resultsController.add(results);
           break;
 
         case 'game_ended':
@@ -202,7 +202,14 @@ class PlayerClient {
   void _handleJoined(Map<String, dynamic> message) {
     final roomCode = message['roomCode']?.toString() ?? '';
 
-    print('JOIN CONFIRMED. Room: $roomCode');
+    if (roomCode.isNotEmpty) {
+      unawaited(
+        GameHistoryService.startGame(
+          gameId: roomCode,
+          players: [Player(id: _playerId, name: _playerName)],
+        ),
+      );
+    }
 
     if (_joinCompleter != null && !_joinCompleter!.isCompleted) {
       _joinCompleter!.complete();
@@ -217,6 +224,16 @@ class PlayerClient {
         .toList();
 
     _latestPlayers = players;
+
+    final gameId = GameHistoryService.currentGameId;
+
+    gameId.then((id) {
+      if (id == null || id.isEmpty) {
+        return;
+      }
+
+      unawaited(GameHistoryService.updatePlayers(gameId: id, players: players));
+    });
 
     _playersController.add(List.unmodifiable(_latestPlayers));
   }
