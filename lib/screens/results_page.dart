@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
+import '../models/game_state.dart';
+import 'game_round_page.dart';
 import '../models/player_score.dart';
 import '../models/player.dart';
 import '../models/player_answers.dart';
@@ -39,6 +40,7 @@ class _ResultsPageState extends State<ResultsPage> {
   late List<PlayerScore> _scores;
 
   StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
+  StreamSubscription<GameState>? _gameStateSubscription;
 
   @override
   void initState() {
@@ -54,7 +56,53 @@ class _ResultsPageState extends State<ResultsPage> {
       _resultsSubscription = widget.playerClient!.resultsStream.listen(
         _handleUpdatedResults,
       );
+
+      _gameStateSubscription = widget.playerClient!.gameStateStream.listen(
+        _handleGameState,
+      );
     }
+  }
+
+  void _handleGameState(GameState state) {
+    if (!mounted) {
+      return;
+    }
+
+    if (state.phase != GamePhase.playing) {
+      return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GameRoundPage(
+          isHost: false,
+          players: widget.players,
+          initialState: state,
+          playerClient: widget.playerClient,
+        ),
+      ),
+    );
+  }
+
+  void _nextRound() {
+    if (!widget.isHost || widget.hostServer == null) {
+      return;
+    }
+
+    final nextState = widget.hostServer!.startNextRound();
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GameRoundPage(
+          isHost: true,
+          players: widget.players,
+          initialState: nextState,
+          hostServer: widget.hostServer,
+        ),
+      ),
+    );
   }
 
   void _handleUpdatedResults(Map<String, dynamic> message) {
@@ -421,6 +469,10 @@ class _ResultsPageState extends State<ResultsPage> {
   }
 
   Widget _buildBottomBar(BuildContext context) {
+    if (!widget.isHost) {
+      return const SizedBox.shrink();
+    }
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -429,7 +481,7 @@ class _ResultsPageState extends State<ResultsPage> {
           width: double.infinity,
           height: 52,
           child: FilledButton(
-            onPressed: null,
+            onPressed: _nextRound,
             child: const Text(
               'NEXT ROUND',
               style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
@@ -443,6 +495,8 @@ class _ResultsPageState extends State<ResultsPage> {
   @override
   void dispose() {
     _resultsSubscription?.cancel();
+    _gameStateSubscription?.cancel();
+
     super.dispose();
   }
 }
