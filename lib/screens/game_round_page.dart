@@ -171,19 +171,15 @@ class _GameRoundPageState extends State<GameRoundPage> {
       if (!mounted) {
         return;
       }
-
       if (_gameState.timeRemaining <= 1) {
         _timer?.cancel();
 
         setState(() {
-          _gameState = _gameState.copyWith(
-            timeRemaining: 0,
-            phase: GamePhase.results,
-          );
+          _gameState = _gameState.copyWith(timeRemaining: 0);
         });
 
-        // Automatically submit when time runs out.
-        if (!_submitted && !widget.isHost) {
+        // Automatically submit for both host and players.
+        if (!_submitted) {
           _submitAnswers();
         }
 

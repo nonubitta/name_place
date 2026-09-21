@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:name_place/models/player_answers.dart';
-
+import '../models/player_score.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import 'discovery_service.dart';
@@ -257,6 +257,62 @@ class HostServer {
     _updateDiscovery();
   }
 
+  List<PlayerScore> _calculateScores() {
+    final scores = <PlayerScore>[];
+
+    final playerIds = _submittedAnswers.keys.toList();
+
+    for (final playerId in playerIds) {
+      final submission = _submittedAnswers[playerId]!;
+
+      final categoryScores = <String, int>{};
+      var total = 0;
+
+      for (final category in submission.answers.keys) {
+        final answer = submission.answers[category]?.trim() ?? '';
+
+        if (answer.isEmpty) {
+          categoryScores[category] = 0;
+          continue;
+        }
+
+        final normalizedAnswer = answer.toLowerCase();
+
+        var matchingPlayers = 0;
+
+        for (final otherPlayerId in playerIds) {
+          final otherSubmission = _submittedAnswers[otherPlayerId];
+
+          if (otherSubmission == null) {
+            continue;
+          }
+
+          final otherAnswer = otherSubmission.answers[category]?.trim() ?? '';
+
+          if (otherAnswer.isNotEmpty &&
+              otherAnswer.toLowerCase() == normalizedAnswer) {
+            matchingPlayers++;
+          }
+        }
+
+        final points = matchingPlayers > 1 ? 5 : 10;
+
+        categoryScores[category] = points;
+        total += points;
+      }
+
+      scores.add(
+        PlayerScore(
+          playerId: playerId,
+          categoryScores: categoryScores,
+          totalScore: total,
+        ),
+      );
+    }
+
+    return scores;
+  }
+
   void _updateDiscovery() {
     _discovery.startHost(
       roomCode: _roomCode,
@@ -328,27 +384,27 @@ class HostServer {
     _playersController.add(const []);
   }
 
-void submitHostAnswers(Map<String, String> answers) {
-  if (_submittedAnswers.containsKey('host')) {
-    return;
+  void submitHostAnswers(Map<String, String> answers) {
+    if (_submittedAnswers.containsKey('host')) {
+      return;
+    }
+
+    final submission = PlayerAnswers(
+      playerId: 'host',
+      answers: answers,
+      submitted: true,
+    );
+
+    _submittedAnswers['host'] = submission;
+
+    _answersController.add(submission);
+
+    print('Host answers submitted: $answers');
+
+    if (allPlayersSubmitted) {
+      _broadcastResults();
+    }
   }
-
-  final submission = PlayerAnswers(
-    playerId: 'host',
-    answers: answers,
-    submitted: true,
-  );
-
-  _submittedAnswers['host'] = submission;
-
-  _answersController.add(submission);
-
-  print('Host answers submitted: $answers');
-
-  if (allPlayersSubmitted) {
-    _broadcastResults();
-  }
-}
 
   void _broadcastResults() {
     if (_resultsBroadcasted) {
@@ -363,12 +419,16 @@ void submitHostAnswers(Map<String, String> answers) {
       submissions[entry.key] = entry.value.toJson();
     }
 
+    final scores = _calculateScores();
+
     final message = {
       'type': 'round_results',
       'round': _currentRound,
       'letter': _currentLetter,
       'answers': submissions,
+      'scores': scores.map((score) => score.toJson()).toList(),
     };
+    
     _resultsController.add(message);
 
     final encoded = jsonEncode(message);
@@ -383,11 +443,6 @@ void submitHostAnswers(Map<String, String> answers) {
   }
 
   void dispose() {
-    _discovery.dispose();
-    _playersController.close();
-    _gameStartedController.close();
-    _answersController.close();
-    _resultsController.close();
     stop();
   }
 }
