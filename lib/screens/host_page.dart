@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../services/app_preferences.dart';
 
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -17,9 +18,7 @@ class HostPage extends StatefulWidget {
 class _HostPageState extends State<HostPage> {
   final HostServer _server = HostServer();
 
-  final TextEditingController _nameController = TextEditingController(
-    text: 'Host',
-  );
+  final TextEditingController _nameController = TextEditingController();
 
   StreamSubscription<List<Player>>? _playersSubscription;
 
@@ -35,11 +34,31 @@ class _HostPageState extends State<HostPage> {
   void initState() {
     super.initState();
 
+    _loadSavedName();
+  }
+
+  Future<void> _loadSavedName() async {
+    final savedName = await AppPreferences.getPlayerName();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (savedName.isNotEmpty) {
+      _nameController.text = savedName;
+    }
+
     _startHost();
   }
 
   Future<void> _startHost() async {
-    await _server.start(hostName: _nameController.text.trim());
+    final name = _nameController.text.trim();
+
+    if (name.isNotEmpty) {
+      await AppPreferences.setPlayerName(name);
+    }
+
+    await _server.start(hostName: name.isEmpty ? 'Host' : name);
 
     _playersSubscription = _server.playersStream.listen((players) {
       if (!mounted) return;
@@ -217,7 +236,7 @@ class _HostPageState extends State<HostPage> {
               ),
             ),
             title: Text(
-              player.name,
+              player.id == 'host' ? '${player.name} (Host)' : player.name,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             trailing: const Icon(Icons.check_circle),

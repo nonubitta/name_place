@@ -20,20 +20,15 @@ class JoinLobbyPage extends StatefulWidget {
   });
 
   @override
-  State<JoinLobbyPage> createState() =>
-      _JoinLobbyPageState();
+  State<JoinLobbyPage> createState() => _JoinLobbyPageState();
 }
 
-class _JoinLobbyPageState
-    extends State<JoinLobbyPage> {
-  StreamSubscription<List<Player>>?
-      _playersSubscription;
+class _JoinLobbyPageState extends State<JoinLobbyPage> {
+  StreamSubscription<List<Player>>? _playersSubscription;
 
-  StreamSubscription<String>?
-      _statusSubscription;
+  StreamSubscription<String>? _statusSubscription;
 
-  StreamSubscription<GameState>?
-      _gameStateSubscription;
+  StreamSubscription<GameState>? _gameStateSubscription;
 
   List<Player> _players = [];
 
@@ -47,32 +42,23 @@ class _JoinLobbyPageState
 
     _players = widget.client.latestPlayers;
 
-    _playersSubscription =
-        widget.client.playersStream.listen(
-      (players) {
-        if (!mounted) return;
+    _playersSubscription = widget.client.playersStream.listen((players) {
+      if (!mounted) return;
 
-        setState(() {
-          _players = players;
-        });
-      },
-    );
+      setState(() {
+        _players = players;
+      });
+    });
 
-    _statusSubscription =
-        widget.client.statusStream.listen(
-      (status) {
-        if (!mounted) return;
+    _statusSubscription = widget.client.statusStream.listen((status) {
+      if (!mounted) return;
 
-        setState(() {
-          _status = status;
-        });
-      },
-    );
+      setState(() {
+        _status = status;
+      });
+    });
 
-    _gameStateSubscription =
-        widget.client.gameStateStream.listen(
-      _onGameState,
-    );
+    _gameStateSubscription = widget.client.gameStateStream.listen(_onGameState);
   }
 
   void _onGameState(GameState state) {
@@ -108,9 +94,7 @@ class _JoinLobbyPageState
 
   @override
   Widget build(BuildContext context) {
-    final connected =
-        _status == 'Connected' ||
-        _status == 'Joined game';
+    final connected = _status == 'Connected' || _status == 'Joined game';
 
     return Scaffold(
       appBar: AppBar(
@@ -121,8 +105,7 @@ class _JoinLobbyPageState
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildConnectionCard(connected),
 
@@ -143,19 +126,13 @@ class _JoinLobbyPageState
                     ? const Center(
                         child: Text(
                           'Waiting for players...',
-                          style: TextStyle(
-                            fontSize: 18,
-                          ),
+                          style: TextStyle(fontSize: 18),
                         ),
                       )
                     : ListView.builder(
                         itemCount: _players.length,
-                        itemBuilder: (
-                          context,
-                          index,
-                        ) {
-                          final player =
-                              _players[index];
+                        itemBuilder: (context, index) {
+                          final player = _players[index];
 
                           return Card(
                             child: ListTile(
@@ -163,12 +140,13 @@ class _JoinLobbyPageState
                                 child: Text(
                                   player.name.isEmpty
                                       ? '?'
-                                      : player.name[0]
-                                          .toUpperCase(),
+                                      : player.name[0].toUpperCase(),
                                 ),
                               ),
                               title: Text(
-                                player.name,
+                                player.id == 'host'
+                                    ? '${player.name} (Host)'
+                                    : player.name,
                               ),
                             ),
                           );
@@ -181,9 +159,7 @@ class _JoinLobbyPageState
               const Text(
                 'Waiting for the host to start the game...',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
+                style: TextStyle(color: Colors.grey),
               ),
             ],
           ),
@@ -192,9 +168,7 @@ class _JoinLobbyPageState
     );
   }
 
-  Widget _buildConnectionCard(
-    bool connected,
-  ) {
+  Widget _buildConnectionCard(bool connected) {
     return Card(
       elevation: 0,
       child: Padding(
@@ -202,9 +176,7 @@ class _JoinLobbyPageState
         child: Row(
           children: [
             Icon(
-              connected
-                  ? Icons.check_circle
-                  : Icons.error_outline,
+              connected ? Icons.check_circle : Icons.error_outline,
               size: 42,
             ),
 
@@ -212,13 +184,10 @@ class _JoinLobbyPageState
 
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    connected
-                        ? 'Connected!'
-                        : _status,
+                    connected ? 'Connected!' : _status,
                     style: const TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.bold,
@@ -227,15 +196,11 @@ class _JoinLobbyPageState
 
                   const SizedBox(height: 4),
 
-                  Text(
-                    'Room ${widget.roomCode}',
-                  ),
+                  Text('Room ${widget.roomCode}'),
 
                   const SizedBox(height: 2),
 
-                  Text(
-                    'Playing as ${widget.playerName}',
-                  ),
+                  Text('Playing as ${widget.playerName}'),
                 ],
               ),
             ),

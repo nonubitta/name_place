@@ -9,6 +9,8 @@ import '../models/player.dart';
 import '../models/player_answers.dart';
 import '../network/host_server.dart';
 import '../network/player_client.dart';
+import 'settings_page.dart';
+import '../services/app_preferences.dart';
 
 class ResultsPage extends StatefulWidget {
   final int round;
@@ -40,6 +42,7 @@ class ResultsPage extends StatefulWidget {
 class _ResultsPageState extends State<ResultsPage> {
   late List<PlayerScore> _scores;
 
+  String _hostName = 'Host';
   StreamSubscription<Map<String, dynamic>>? _resultsSubscription;
   StreamSubscription<GameState>? _gameStateSubscription;
 
@@ -61,6 +64,22 @@ class _ResultsPageState extends State<ResultsPage> {
       _gameStateSubscription = widget.playerClient!.gameStateStream.listen(
         _handleGameState,
       );
+    }
+
+    _loadHostName();
+  }
+
+  Future<void> _loadHostName() async {
+    final savedName = await AppPreferences.getPlayerName();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (savedName.isNotEmpty) {
+      setState(() {
+        _hostName = savedName;
+      });
     }
   }
 
@@ -144,7 +163,7 @@ class _ResultsPageState extends State<ResultsPage> {
 
   String _playerName(String playerId) {
     if (playerId == 'host') {
-      return 'Host';
+      return _hostName;
     }
 
     for (final player in widget.players) {
