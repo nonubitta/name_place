@@ -235,18 +235,14 @@ class _GameRoundPageState extends State<GameRoundPage> {
     _timer?.cancel();
     _gameSubscription?.cancel();
     _answersSubscription?.cancel();
+    _submissionSubscription?.cancel();
+    _resultsSubscription?.cancel();
+
     for (final controller in _controllers.values) {
       controller.dispose();
     }
 
-    if (widget.isHost) {
-      widget.hostServer?.dispose();
-    }
-
     super.dispose();
-    _submissionSubscription?.cancel();
-
-    _resultsSubscription?.cancel();
   }
 
   @override
