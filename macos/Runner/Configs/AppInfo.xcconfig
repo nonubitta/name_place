@@ -8,7 +8,7 @@
 PRODUCT_NAME = name_place
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.namePlace
+PRODUCT_BUNDLE_IDENTIFIER = org.keertanpothi.name_place
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
