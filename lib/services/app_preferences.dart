@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppPreferences {
@@ -152,5 +154,30 @@ class AppPreferences {
     await preferences.remove(
       _roundDurationKey,
     );
+  }
+
+  // --------------------------------------------------
+  // Export / Import Categories
+  // --------------------------------------------------
+
+  /// Exports current categories to a JSON string.
+  static Future<String> exportCategoriesToJson() async {
+    final categories = await getCategories();
+    return '{"categories": $jsonEncode(categories)}';
+  }
+
+  /// Imports categories from a JSON string.
+  /// Returns the number of categories imported.
+  static Future<int> importCategoriesFromJson(String jsonString) async {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonString);
+      final List<dynamic> categoriesJson = data['categories'] ?? [];
+      final categories = categoriesJson.cast<String>();
+
+      await setCategories(categories);
+      return categories.length;
+    } catch (e) {
+      return 0;
+    }
   }
 }
