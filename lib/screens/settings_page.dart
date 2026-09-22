@@ -191,58 +191,16 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<String?> _showCategoryDialog({
     required String title,
     String initialValue = '',
-  }) async {
-    final controller = TextEditingController(text: initialValue);
-
-    final result = await showDialog<String>(
+  }) {
+    return showDialog<String>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Category',
-              hintText: 'Enter category name',
-              border: OutlineInputBorder(),
-            ),
-            onSubmitted: (_) {
-              final value = controller.text.trim();
-
-              if (value.isNotEmpty) {
-                Navigator.pop(context, value);
-              }
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final value = controller.text.trim();
-
-                if (value.isEmpty) {
-                  return;
-                }
-
-                Navigator.pop(context, value);
-              },
-              child: const Text('Save'),
-            ),
-          ],
+      builder: (dialogContext) {
+        return _CategoryDialog(
+          title: title,
+          initialValue: initialValue,
         );
       },
     );
-
-    controller.dispose();
-
-    return result;
   }
 
   Future<bool> _showDeleteConfirmation(String category) async {
@@ -844,6 +802,74 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+class _CategoryDialog extends StatefulWidget {
+  const _CategoryDialog({
+    required this.title,
+    this.initialValue = '',
+  });
+
+  final String title;
+  final String initialValue;
+
+  @override
+  State<_CategoryDialog> createState() => _CategoryDialogState();
+}
+
+class _CategoryDialogState extends State<_CategoryDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final value = _controller.text.trim();
+
+    if (value.isEmpty) {
+      return;
+    }
+
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(
+          labelText: 'Category',
+          hintText: 'Enter category name',
+          border: OutlineInputBorder(),
+        ),
+        onSubmitted: (_) => _save(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
