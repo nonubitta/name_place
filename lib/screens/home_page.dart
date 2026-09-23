@@ -8,6 +8,8 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onColor = Theme.of(context).colorScheme.onSurface;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Name Place Animal Thing'),
@@ -32,24 +34,40 @@ class HomePage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.groups_rounded, size: 80),
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: onColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.groups_rounded, size: 72, color: onColor),
+                ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
 
-                const Text(
+                Text(
                   'Name Place Animal Thing',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    color: onColor,
+                    letterSpacing: 0.5,
+                  ),
                 ),
 
                 const SizedBox(height: 10),
 
-                const Text(
+                Text(
                   'Play together on the same Wi-Fi network',
                   textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: onColor.withValues(alpha: 0.85),
+                  ),
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 44),
 
                 SizedBox(
                   width: double.infinity,
@@ -79,6 +97,14 @@ class HomePage extends StatelessWidget {
                       );
                     },
                   ),
+                ),
+
+                const SizedBox(height: 40),
+
+                Icon(
+                  Icons.wifi_rounded,
+                  size: 40,
+                  color: onColor.withValues(alpha: 0.9),
                 ),
               ],
             ),

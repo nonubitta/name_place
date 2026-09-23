@@ -208,7 +208,9 @@ class _SettingsPageState extends State<SettingsPage> {
       _categories = List<String>.from(categories);
     });
 
-    _showMessage('Successfully imported $count categor${count == 1 ? 'y' : 'ies'}.');
+    _showMessage(
+      'Successfully imported $count categor${count == 1 ? 'y' : 'ies'}.',
+    );
   }
 
   void _onReorder(int oldIndex, int newIndex) {
@@ -232,10 +234,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return showDialog<String>(
       context: context,
       builder: (dialogContext) {
-        return _CategoryDialog(
-          title: title,
-          initialValue: initialValue,
-        );
+        return _CategoryDialog(title: title, initialValue: initialValue);
       },
     );
   }
@@ -613,46 +612,91 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildAppearanceSection() {
+    final isDark = ThemeController.instance.isDark;
+
     return _buildSection(
       title: 'Appearance',
       icon: Icons.palette_outlined,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(
-            Icons.dark_mode_outlined,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-          ),
-        ),
-        title: const Text(
-          'Dark Theme',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          'Use the dark royal theme throughout the app.',
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        trailing: Switch(
-          value: ThemeController.instance.isDark,
-          onChanged: (value) async {
-            await ThemeController.instance.setDarkTheme(value);
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(
+                Icons.dark_mode_outlined,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+            title: const Text(
+              'Dark Theme',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(
+              'Use the dark royal theme throughout the app.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            trailing: Switch(
+              value: isDark,
+              onChanged: (value) async {
+                await ThemeController.instance.setDarkTheme(value);
 
-            if (!mounted) {
-              return;
-            }
+                if (!mounted) {
+                  return;
+                }
 
-            setState(() {});
-          },
-        ),
+                setState(() {});
+              },
+            ),
+          ),
+
+          // Only meaningful in light mode, where the vibrant palette applies.
+          if (!isDark)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  Icons.shuffle_rounded,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+              title: const Text(
+                'Shuffle Color',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                'Pick a new random vibrant background color.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                ThemeController.instance.shuffleLightPalette();
+
+                if (!mounted) {
+                  return;
+                }
+
+                setState(() {});
+              },
+            ),
+        ],
       ),
     );
   }
@@ -839,12 +883,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-
 class _CategoryDialog extends StatefulWidget {
-  const _CategoryDialog({
-    required this.title,
-    this.initialValue = '',
-  });
+  const _CategoryDialog({required this.title, this.initialValue = ''});
 
   final String title;
   final String initialValue;
@@ -898,10 +938,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _save,
-          child: const Text('Save'),
-        ),
+        FilledButton(onPressed: _save, child: const Text('Save')),
       ],
     );
   }
