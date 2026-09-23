@@ -6,6 +6,7 @@ import '../models/game_state.dart';
 import '../models/player.dart';
 import '../network/player_client.dart';
 import 'game_round_page.dart';
+import 'home_page.dart';
 
 class JoinLobbyPage extends StatefulWidget {
   final PlayerClient client;
@@ -30,11 +31,15 @@ class _JoinLobbyPageState extends State<JoinLobbyPage> {
 
   StreamSubscription<GameState>? _gameStateSubscription;
 
+  StreamSubscription<void>? _roomCancelledSubscription;
+
   List<Player> _players = [];
 
   String _status = 'Connected';
 
   bool _gameStarted = false;
+
+  bool _leaving = false;
 
   @override
   void initState() {
@@ -59,6 +64,29 @@ class _JoinLobbyPageState extends State<JoinLobbyPage> {
     });
 
     _gameStateSubscription = widget.client.gameStateStream.listen(_onGameState);
+
+    _roomCancelledSubscription = widget.client.roomCancelledStream.listen(
+      _onRoomCancelled,
+    );
+  }
+
+  Future<void> _onRoomCancelled(_) async {
+    if (!mounted || _leaving) {
+      return;
+    }
+
+    _leaving = true;
+    await widget.client.disconnect();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+      (route) => false,
+    );
   }
 
   void _onGameState(GameState state) {
@@ -83,11 +111,27 @@ class _JoinLobbyPageState extends State<JoinLobbyPage> {
     }
   }
 
+  Future<void> _leaveLobby() async {
+    if (_leaving || _gameStarted) {
+      return;
+    }
+
+    _leaving = true;
+    await widget.client.disconnect();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.pop(context);
+  }
+
   @override
   void dispose() {
     _playersSubscription?.cancel();
     _statusSubscription?.cancel();
     _gameStateSubscription?.cancel();
+    _roomCancelledSubscription?.cancel();
 
     super.dispose();
   }
@@ -96,13 +140,22 @@ class _JoinLobbyPageState extends State<JoinLobbyPage> {
   Widget build(BuildContext context) {
     final connected = _status == 'Connected' || _status == 'Joined game';
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Game Lobby'),
-      ),
-      body: SafeArea(
-        child: Padding(
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (_, _) {
+        _leaveLobby();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Leave lobby',
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _leaving ? null : _leaveLobby,
+          ),
+          title: const Text('Game Lobby'),
+        ),
+        body: SafeArea(
+          child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -162,6 +215,7 @@ class _JoinLobbyPageState extends State<JoinLobbyPage> {
                 style: TextStyle(color: Colors.grey),
               ),
             ],
+          ),
           ),
         ),
       ),

@@ -7,6 +7,7 @@ import '../models/game_state.dart';
 import '../models/player.dart';
 import '../network/host_server.dart';
 import 'game_round_page.dart';
+import 'home_page.dart';
 
 class HostPage extends StatefulWidget {
   const HostPage({super.key});
@@ -29,6 +30,8 @@ class _HostPageState extends State<HostPage> {
   bool _starting = true;
 
   bool _gameStarted = false;
+
+  bool _leaving = false;
 
   @override
   void initState() {
@@ -107,6 +110,60 @@ class _HostPageState extends State<HostPage> {
     );
   }
 
+  Future<void> _handleBack() async {
+    if (_leaving) {
+      return;
+    }
+
+    if (_players.isEmpty) {
+      _leaving = true;
+      await _server.stop();
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      return;
+    }
+
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cancel game room?'),
+          content: Text(
+            '${_players.length} ${_players.length == 1 ? 'player is' : 'players are'} connected. '
+            'Going back will cancel this room and return everyone to the home screen.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Stay'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Cancel Room'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldCancel != true || !mounted) {
+      return;
+    }
+
+    _leaving = true;
+    await _server.cancelLobby();
+
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
+    }
+  }
+
   @override
   void dispose() {
     _playersSubscription?.cancel();
@@ -125,7 +182,12 @@ class _HostPageState extends State<HostPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (_, _) {
+        _handleBack();
+      },
+      child: Scaffold(
       appBar: AppBar(title: const Text('Game Lobby')),
       body: _starting
           ? const Center(child: CircularProgressIndicator())
@@ -169,6 +231,7 @@ class _HostPageState extends State<HostPage> {
                 ),
               ),
             ),
+      ),
     );
   }
 

@@ -266,6 +266,14 @@ class HostServer with WidgetsBindingObserver {
     }
   }
 
+  Future<void> cancelLobby() async {
+    if (_connections.isNotEmpty) {
+      _broadcast({'type': 'room_cancelled'});
+    }
+
+    await stop();
+  }
+
   void _startLifecycleObserver() {
     if (_lifecycleObserverRegistered) {
       return;

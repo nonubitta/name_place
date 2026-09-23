@@ -30,10 +30,15 @@ class PlayerClient with WidgetsBindingObserver {
   final StreamController<void> _gameEndedController =
       StreamController<void>.broadcast();
 
+    final StreamController<void> _roomCancelledController =
+      StreamController<void>.broadcast();
+
   final StreamController<Map<String, dynamic>> _playerActivityController =
       StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<void> get gameEndedStream => _gameEndedController.stream;
+
+  Stream<void> get roomCancelledStream => _roomCancelledController.stream;
 
   Stream<Map<String, dynamic>> get playerActivityStream =>
       _playerActivityController.stream;
@@ -195,6 +200,10 @@ class PlayerClient with WidgetsBindingObserver {
           _gameEndedController.add(null);
           break;
 
+        case 'room_cancelled':
+          _roomCancelledController.add(null);
+          break;
+
         default:
           print('Unknown server message type: $type');
       }
@@ -344,6 +353,7 @@ class PlayerClient with WidgetsBindingObserver {
     _submissionReceivedController.close();
     _resultsController.close();
     _gameEndedController.close();
+    _roomCancelledController.close();
     _playerActivityController.close();
   }
 }
