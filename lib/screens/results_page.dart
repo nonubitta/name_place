@@ -202,6 +202,14 @@ class _ResultsPageState extends State<ResultsPage> {
     return null;
   }
 
+  int _grandTotalFor(String playerId) {
+    if (widget.isHost) {
+      return widget.hostServer?.totalScores[playerId] ?? 0;
+    }
+
+    return widget.playerClient?.totalScores[playerId] ?? 0;
+  }
+
   String _playerName(String playerId) {
     for (final player in widget.players) {
       if (player.id == playerId) {
@@ -350,11 +358,19 @@ class _ResultsPageState extends State<ResultsPage> {
 
             Expanded(
               child: entries.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No submissions.',
-                        style: TextStyle(fontSize: 18),
-                      ),
+                  ? ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            'No submissions.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ),
+                        _buildRoundTotalsCard(),
+                      ],
                     )
                   : _groupByCategory
                   ? _buildCategoryView()
@@ -371,8 +387,12 @@ class _ResultsPageState extends State<ResultsPage> {
   Widget _buildPlayerView(List<MapEntry<String, PlayerAnswers>> entries) {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: entries.length,
+      itemCount: entries.length + 1,
       itemBuilder: (context, index) {
+        if (index == entries.length) {
+          return _buildRoundTotalsCard();
+        }
+
         final entry = entries[index];
 
         return _buildPlayerCard(context, entry.key, entry.value);
@@ -393,8 +413,12 @@ class _ResultsPageState extends State<ResultsPage> {
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: categories.length,
+      itemCount: categories.length + 1,
       itemBuilder: (context, index) {
+        if (index == categories.length) {
+          return _buildRoundTotalsCard();
+        }
+
         final category = categories[index];
 
         return _buildCategoryCard(category);
@@ -425,6 +449,92 @@ class _ResultsPageState extends State<ResultsPage> {
                 entry.value.answers[category] ?? '',
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoundTotalsCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      color: colorScheme.primaryContainer,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: colorScheme.primary, width: 1.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.emoji_events_outlined, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Totals',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
+            Divider(height: 24, color: colorScheme.primary.withValues(alpha: 0.4)),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  _buildTotalsCell('Name', flex: 2, header: true),
+                  _buildTotalsCell('Round Total', flex: 1, header: true),
+                  _buildTotalsCell('Grand Total', flex: 1, header: true),
+                ],
+              ),
+            ),
+            for (final player in widget.players)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Row(
+                  children: [
+                    _buildTotalsCell(_playerName(player.id), flex: 2),
+                    _buildTotalsCell(
+                      '${_scoreFor(player.id)?.totalScore ?? 0}',
+                      flex: 1,
+                    ),
+                    _buildTotalsCell('${_grandTotalFor(player.id)}', flex: 1),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTotalsCell(String text, {required int flex, bool header = false}) {
+    return Expanded(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Text(
+          text,
+          maxLines: header ? 2 : 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: flex == 2 ? TextAlign.left : TextAlign.right,
+          style: TextStyle(
+            fontSize: header ? 12 : 16,
+            fontWeight: header ? FontWeight.bold : FontWeight.w600,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
         ),
       ),
     );
@@ -552,13 +662,6 @@ class _ResultsPageState extends State<ResultsPage> {
                       fontSize: 19,
                       fontWeight: FontWeight.bold,
                     ),
-                  ),
-                ),
-                Text(
-                  '${playerScore?.totalScore ?? 0} pts',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
