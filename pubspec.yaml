@@ -122,8 +122,7 @@ flutter:
 flutter_native_splash:
   color: "#ffffff"
   image: "assets/images/splash.png"
+  android_gravity: fill
   android: true
   ios: true
   web: true
-  macos: true
-  linux: true

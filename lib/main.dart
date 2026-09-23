@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/home_page.dart';
+import 'screens/splash_page.dart';
 import 'services/theme_controller.dart';
 import 'utils/vibrant_palette.dart';
 
@@ -351,7 +351,7 @@ class NamePlaceAnimalThingApp extends StatelessWidget {
               child: child,
             );
           },
-          home: const HomePage(),
+          home: const SplashPage(),
         );
       },
     );
