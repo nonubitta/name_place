@@ -23,6 +23,7 @@ class _JoinPageState extends State<JoinPage> {
   final PlayerClient _client = PlayerClient();
 
   StreamSubscription<GameRoom>? _roomSubscription;
+  StreamSubscription<String>? _closedRoomSubscription;
 
   final Map<String, GameRoom> _rooms = {};
 
@@ -63,6 +64,17 @@ class _JoinPageState extends State<JoinPage> {
 
           if (!_connecting) {
             _status = 'Games found';
+          }
+        });
+      });
+
+      _closedRoomSubscription = _discovery.closedRoomsStream.listen((roomCode) {
+        if (!mounted) return;
+
+        setState(() {
+          _rooms.remove(roomCode);
+          if (_rooms.isEmpty && !_connecting) {
+            _status = 'Searching for games...';
           }
         });
       });
@@ -164,6 +176,7 @@ class _JoinPageState extends State<JoinPage> {
   @override
   void dispose() {
     _roomSubscription?.cancel();
+    _closedRoomSubscription?.cancel();
 
     _discovery.dispose();
 

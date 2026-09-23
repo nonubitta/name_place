@@ -9,18 +9,24 @@ class DiscoveryService {
 
   RawDatagramSocket? _socket;
   Timer? _broadcastTimer;
+  bool _hosting = false;
+  String? _hostRoomCode;
 
   final StreamController<GameRoom> _roomsController =
       StreamController<GameRoom>.broadcast();
 
+    final StreamController<String> _closedRoomsController =
+      StreamController<String>.broadcast();
+
   Stream<GameRoom> get roomsStream => _roomsController.stream;
+    Stream<String> get closedRoomsStream => _closedRoomsController.stream;
 
   Future<void> startHost({
     required String roomCode,
     required String hostName,
     required int playerCount,
   }) async {
-    await stop();
+    await stop(announceClosure: false);
 
     _socket = await RawDatagramSocket.bind(
       InternetAddress.anyIPv4,
@@ -30,6 +36,8 @@ class DiscoveryService {
     );
 
     _socket!.broadcastEnabled = true;
+    _hosting = true;
+    _hostRoomCode = roomCode;
 
     void broadcast() {
       final message = jsonEncode({
@@ -57,7 +65,7 @@ class DiscoveryService {
   }
 
   Future<void> startDiscovery() async {
-    await stop();
+    await stop(announceClosure: false);
 
     _socket = await RawDatagramSocket.bind(
       InternetAddress.anyIPv4,
@@ -84,6 +92,14 @@ class DiscoveryService {
           utf8.decode(datagram.data),
         );
 
+        if (message['type'] == 'npat_game_closed') {
+          final roomCode = message['roomCode']?.toString();
+          if (roomCode != null && roomCode.isNotEmpty) {
+            _closedRoomsController.add(roomCode);
+          }
+          return;
+        }
+
         if (message['type'] != 'npat_game') {
           return;
         }
@@ -100,16 +116,35 @@ class DiscoveryService {
     });
   }
 
-  Future<void> stop() async {
+  Future<void> stop({bool announceClosure = true}) async {
     _broadcastTimer?.cancel();
     _broadcastTimer = null;
 
-    _socket?.close();
+    final socket = _socket;
+    final roomCode = _hostRoomCode;
+
+    if (announceClosure && _hosting && socket != null && roomCode != null) {
+      socket.send(
+        utf8.encode(
+          jsonEncode({
+            'type': 'npat_game_closed',
+            'roomCode': roomCode,
+          }),
+        ),
+        InternetAddress('255.255.255.255'),
+        discoveryPort,
+      );
+    }
+
+    _hosting = false;
+    _hostRoomCode = null;
+    socket?.close();
     _socket = null;
   }
 
   void dispose() {
     stop();
     _roomsController.close();
+    _closedRoomsController.close();
   }
 }

@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/widgets.dart';
 
 import 'package:name_place/models/player_answers.dart';
+import '../services/app_preferences.dart';
 import '../services/game_history_service.dart';
 import '../models/player_score.dart';
 import '../models/game_state.dart';
@@ -74,6 +75,8 @@ class HostServer with WidgetsBindingObserver {
 
   bool _gameStarted = false;
 
+  int _roundDuration = AppPreferences.defaultRoundDuration;
+
   bool get gameStarted => _gameStarted;
 
   bool _resultsBroadcasted = false;
@@ -90,6 +93,7 @@ class HostServer with WidgetsBindingObserver {
 
     _hostName = hostName;
     _roomCode = _generateRoomCode();
+    _roundDuration = await AppPreferences.getRoundDuration();
 
     await GameHistoryService.startGame(
       gameId: _roomCode,
@@ -553,7 +557,7 @@ class HostServer with WidgetsBindingObserver {
       phase: GamePhase.playing,
       letter: letter,
       round: 1,
-      timeRemaining: 30,
+      timeRemaining: _roundDuration,
       categories: selectedCategories,
     );
 
@@ -592,7 +596,7 @@ class HostServer with WidgetsBindingObserver {
       phase: GamePhase.playing,
       letter: letter,
       round: _currentRound,
-      timeRemaining: 30,
+      timeRemaining: _roundDuration,
       categories: List<String>.from(_currentCategories),
     );
 
