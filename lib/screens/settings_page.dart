@@ -174,6 +174,43 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  Future<void> _exportCategories() async {
+    try {
+      final savedFile = await AppPreferences.exportCategories();
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        savedFile == null ? 'Export cancelled.' : 'Categories saved.',
+      );
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Failed to save categories.');
+      }
+    }
+  }
+
+  Future<void> _importCategories() async {
+    final count = await AppPreferences.pickAndImportCategories();
+    if (count == null) {
+      _showMessage('Import cancelled or failed.');
+      return;
+    }
+
+    // Reload categories from preferences
+    final categories = await AppPreferences.getCategories();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _categories = List<String>.from(categories);
+    });
+
+    _showMessage('Successfully imported $count categor${count == 1 ? 'y' : 'ies'}.');
+  }
+
   void _onReorder(int oldIndex, int newIndex) {
     setState(() {
       if (oldIndex < newIndex) {
@@ -468,22 +505,18 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildCategoriesHeader() {
     return Row(
       children: [
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Categories',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              ),
-              SizedBox(height: 3),
-              Text(
-                'Drag to change the order.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
+        TextButton.icon(
+          onPressed: _exportCategories,
+          icon: const Icon(Icons.file_upload_outlined, size: 19),
+          label: const Text('Export'),
         ),
+        const SizedBox(width: 8),
+        TextButton.icon(
+          onPressed: _importCategories,
+          icon: const Icon(Icons.file_download_outlined, size: 19),
+          label: const Text('Import'),
+        ),
+        const SizedBox(width: 8),
         TextButton.icon(
           onPressed: _addCategory,
           icon: const Icon(Icons.add, size: 19),
