@@ -273,6 +273,36 @@ class _ResultsPageState extends State<ResultsPage> {
       return;
     }
 
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Exit Game?'),
+          content: const Text('You will leave the game and return home.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('EXIT GAME'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    await widget.playerClient?.disconnect();
+
+    if (!mounted) {
+      return;
+    }
+
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 

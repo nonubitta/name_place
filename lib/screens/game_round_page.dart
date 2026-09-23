@@ -11,6 +11,7 @@ import '../network/host_server.dart';
 import '../network/player_client.dart';
 import 'scoreboard_page.dart';
 import 'settings_page.dart';
+import 'home_page.dart';
 
 class GameRoundPage extends StatefulWidget {
   final bool isHost;
@@ -232,6 +233,49 @@ class _GameRoundPageState extends State<GameRoundPage> {
     );
   }
 
+  Future<void> _exitGame() async {
+    if (widget.isHost) {
+      await _endGame();
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Exit Game?'),
+          content: const Text('You will leave the game and return home.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('EXIT GAME'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await widget.playerClient?.disconnect();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+      (route) => false,
+    );
+  }
+
   void _createControllers() {
     for (final category in _gameState.categories) {
       _controllers[category] = TextEditingController();
@@ -434,10 +478,16 @@ class _GameRoundPageState extends State<GameRoundPage> {
 
     final isResults = _gameState.phase == GamePhase.results;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Round ${_gameState.round}'),
-        actions: [
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (_, _) {
+        _exitGame();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Text('Round ${_gameState.round}'),
+          actions: [
           IconButton(
             tooltip: 'Scoreboard',
             icon: const Icon(Icons.leaderboard_outlined),
@@ -448,23 +498,23 @@ class _GameRoundPageState extends State<GameRoundPage> {
             icon: const Icon(Icons.settings_outlined),
             onPressed: _openSettings,
           ),
-          if (widget.isHost)
             IconButton(
-              tooltip: 'End Game',
-              icon: const Icon(Icons.stop_circle_outlined),
-              onPressed: _endGame,
+              tooltip: 'Exit Game',
+              icon: const Icon(Icons.exit_to_app),
+              onPressed: _exitGame,
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-
-            if (isPlaying) Expanded(child: _buildAnswerSheet()),
-
-            if (isResults) Expanded(child: _buildResultsPlaceholder()),
           ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+
+              if (isPlaying) Expanded(child: _buildAnswerSheet()),
+
+              if (isResults) Expanded(child: _buildResultsPlaceholder()),
+            ],
+          ),
         ),
       ),
     );
