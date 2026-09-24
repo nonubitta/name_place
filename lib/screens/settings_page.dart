@@ -15,6 +15,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _nameController = TextEditingController();
 
   List<String> _categories = [];
+  String _savedPlayerName = '';
 
   int _roundDuration = AppPreferences.defaultRoundDuration;
 
@@ -53,6 +54,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     setState(() {
       _nameController.text = playerName;
+      _savedPlayerName = playerName;
       _categories = List<String>.from(categories);
       _roundDuration = roundDuration;
       _loading = false;
@@ -76,7 +78,12 @@ class _SettingsPageState extends State<SettingsPage> {
   // --------------------------------------------------
 
   Future<void> _savePlayerName() async {
+    if (_nameController.text == _savedPlayerName) {
+      return;
+    }
+
     await AppPreferences.setPlayerName(_nameController.text);
+    _savedPlayerName = _nameController.text;
   }
 
   // --------------------------------------------------
@@ -335,19 +342,35 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          _buildPlayerSection(),
-          const SizedBox(height: 20),
-          _buildAppearanceSection(),
-          const SizedBox(height: 20),
-          _buildGameSettingsSection(),
-          const SizedBox(height: 24),
-          _buildAboutSection(),
-        ],
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          return;
+        }
+
+        await _savePlayerName();
+
+        if (!context.mounted) {
+          return;
+        }
+
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Settings')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            _buildPlayerSection(),
+            const SizedBox(height: 20),
+            _buildAppearanceSection(),
+            const SizedBox(height: 20),
+            _buildGameSettingsSection(),
+            const SizedBox(height: 24),
+            _buildAboutSection(),
+          ],
+        ),
       ),
     );
   }
