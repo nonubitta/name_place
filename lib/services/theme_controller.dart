@@ -22,10 +22,24 @@ class ThemeController extends ChangeNotifier {
   VibrantPalette get lightPalette => _lightPalette;
 
   /// Picks a new random palette for the light theme and notifies listeners.
-  void shuffleLightPalette() {
+  Future<void> shuffleLightPalette() async {
     _lightPalette = VibrantPalette.random();
     notifyListeners();
   }
+
+  // Future<void> load() async {
+  //   final preferences = await SharedPreferences.getInstance();
+
+  //   _isDark = preferences.getBool(_darkThemeKey) ?? true;
+  //   notifyListeners();
+  // }
+
+  Future<void> clearPreferences() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_lightPaletteKey);
+    await shuffleLightPalette();
+  }
+
 
   Future<void> load() async {
     final preferences = await SharedPreferences.getInstance();

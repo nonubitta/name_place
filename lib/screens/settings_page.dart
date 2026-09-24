@@ -687,21 +687,29 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               trailing: DropdownButtonHideUnderline(
-                child: DropdownButton<VibrantPalette>(
+                child: DropdownButton<Object>(
                   value: ThemeController.instance.lightPalette,
                   items: [
+                    const DropdownMenuItem<Object>(
+                      value: 'random',
+                      child: Text('Random'),
+                    ),
                     for (final palette in VibrantPalette.palettes)
-                      DropdownMenuItem<VibrantPalette>(
+                      DropdownMenuItem<Object>(
                         value: palette,
                         child: Text(palette.name),
                       ),
                   ],
-                  onChanged: (palette) async {
-                    if (palette == null) {
+                  onChanged: (selection) async {
+                    if (selection == null) {
                       return;
                     }
 
-                    await ThemeController.instance.setLightPalette(palette);
+                    if (selection == 'random') {
+                      await ThemeController.instance.clearPreferences();
+                    } else if (selection is VibrantPalette) {
+                      await ThemeController.instance.setLightPalette(selection);
+                    }
 
                     if (mounted) {
                       setState(() {});
