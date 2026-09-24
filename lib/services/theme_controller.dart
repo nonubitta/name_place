@@ -11,7 +11,7 @@ class ThemeController extends ChangeNotifier {
   static const String _darkThemeKey = 'dark_theme';
   static const String _lightPaletteKey = 'light_palette';
 
-  bool _isDark = true;
+  bool _isDark = false;
 
   bool get isDark => _isDark;
 
@@ -44,7 +44,7 @@ class ThemeController extends ChangeNotifier {
   Future<void> load() async {
     final preferences = await SharedPreferences.getInstance();
 
-    _isDark = preferences.getBool(_darkThemeKey) ?? true;
+    _isDark = preferences.getBool(_darkThemeKey) ?? false;
 
     final savedPaletteName = preferences.getString(_lightPaletteKey);
     if (savedPaletteName != null) {
