@@ -60,6 +60,10 @@ class _JoinPageState extends State<JoinPage> {
         if (!mounted) return;
 
         setState(() {
+          _rooms.removeWhere(
+            (_, existingRoom) =>
+                existingRoom.hostAddress == room.hostAddress,
+          );
           _rooms[room.roomCode] = room;
 
           if (!_connecting) {
