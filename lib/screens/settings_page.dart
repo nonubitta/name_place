@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/theme_controller.dart';
 import '../services/app_preferences.dart';
+import '../utils/vibrant_palette.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -670,31 +671,44 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(
-                  Icons.shuffle_rounded,
+                  Icons.color_lens_outlined,
                   color: Theme.of(context).colorScheme.onPrimaryContainer,
                 ),
               ),
               title: const Text(
-                'Shuffle Color',
+                'Theme Color',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               subtitle: Text(
-                'Pick a new random vibrant background color.',
+                'Choose a vibrant background color.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                ThemeController.instance.shuffleLightPalette();
+              trailing: DropdownButtonHideUnderline(
+                child: DropdownButton<VibrantPalette>(
+                  value: ThemeController.instance.lightPalette,
+                  items: [
+                    for (final palette in VibrantPalette.palettes)
+                      DropdownMenuItem<VibrantPalette>(
+                        value: palette,
+                        child: Text(palette.name),
+                      ),
+                  ],
+                  onChanged: (palette) async {
+                    if (palette == null) {
+                      return;
+                    }
 
-                if (!mounted) {
-                  return;
-                }
+                    await ThemeController.instance.setLightPalette(palette);
 
-                setState(() {});
-              },
+                    if (mounted) {
+                      setState(() {});
+                    }
+                  },
+                ),
+              ),
             ),
         ],
       ),

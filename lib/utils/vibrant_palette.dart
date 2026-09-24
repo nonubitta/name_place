@@ -53,20 +53,12 @@ class VibrantPalette {
       onBackground: Colors.white,
     ),
     VibrantPalette(
-      name: 'Teal',
-      background: Color.fromARGB(255, 2, 219, 200),
-      backgroundGradientEnd: Color(0xFF068C82),
-      accent: Color(0xFFFFFFFF),
+      name: 'Ruby',
+      background: Color(0xFFE53958),
+      backgroundGradientEnd: Color(0xFFB91F3E),
+      accent: Color(0xFFFFD6DE),
       onBackground: Colors.white,
     ),
-    // VibrantPalette(
-    //   name: 'Ruby',
-    //   background: Color(0xFFE53958),
-    //   backgroundGradientEnd: Color(0xFFB91F3E),
-    //   accent: Color(0xFFFFD6DE),
-    //   onBackground: Colors.white,
-    // ),
-
     VibrantPalette(
       name: 'Sky',
       background: Color(0xFF1597E5),
@@ -74,7 +66,6 @@ class VibrantPalette {
       accent: Color(0xFFCBEAFF),
       onBackground: Colors.white,
     ),
-
     VibrantPalette(
       name: 'Indigo',
       background: Color(0xFF5967E8),
@@ -82,7 +73,6 @@ class VibrantPalette {
       accent: Color(0xFFD9DDFF),
       onBackground: Colors.white,
     ),
-
     VibrantPalette(
       name: 'Violet',
       background: Color(0xFF9B4DEB),
@@ -90,7 +80,6 @@ class VibrantPalette {
       accent: Color(0xFFEBD5FF),
       onBackground: Colors.white,
     ),
-
     VibrantPalette(
       name: 'Berry',
       background: Color(0xFFB83A8F),
@@ -98,7 +87,6 @@ class VibrantPalette {
       accent: Color(0xFFFFD8EF),
       onBackground: Colors.white,
     ),
-
     VibrantPalette(
       name: 'Mint',
       background: Color(0xFF16A878),
@@ -106,20 +94,11 @@ class VibrantPalette {
       accent: Color(0xFFC8F5E5),
       onBackground: Colors.white,
     ),
-
     VibrantPalette(
       name: 'Cyan',
       background: Color(0xFF0EA9C6),
       backgroundGradientEnd: Color(0xFF087E9A),
       accent: Color(0xFFC8F4FA),
-      onBackground: Colors.white,
-    ),
-
-    VibrantPalette(
-      name: 'Turquoise',
-      background: Color(0xFF13AFA0),
-      backgroundGradientEnd: Color(0xFF087D74),
-      accent: Color(0xFFC7F3EF),
       onBackground: Colors.white,
     ),
     VibrantPalette(
