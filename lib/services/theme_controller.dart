@@ -18,8 +18,11 @@ class ThemeController extends ChangeNotifier {
   /// The vibrant palette used to color the light theme. A random palette is
   /// used until the player chooses and saves a preference.
   VibrantPalette _lightPalette = VibrantPalette.random();
+  bool _hasLightPalettePreference = false;
 
   VibrantPalette get lightPalette => _lightPalette;
+
+  bool get hasLightPalettePreference => _hasLightPalettePreference;
 
   /// Picks a new random palette for the light theme and notifies listeners.
   Future<void> shuffleLightPalette() async {
@@ -37,6 +40,7 @@ class ThemeController extends ChangeNotifier {
   Future<void> clearPreferences() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_lightPaletteKey);
+    _hasLightPalettePreference = false;
     await shuffleLightPalette();
   }
 
@@ -47,10 +51,12 @@ class ThemeController extends ChangeNotifier {
     _isDark = preferences.getBool(_darkThemeKey) ?? false;
 
     final savedPaletteName = preferences.getString(_lightPaletteKey);
+    _hasLightPalettePreference = false;
     if (savedPaletteName != null) {
       for (final palette in VibrantPalette.palettes) {
         if (palette.name == savedPaletteName) {
           _lightPalette = palette;
+          _hasLightPalettePreference = true;
           break;
         }
       }
@@ -60,11 +66,12 @@ class ThemeController extends ChangeNotifier {
   }
 
   Future<void> setLightPalette(VibrantPalette palette) async {
-    if (_lightPalette.name == palette.name) {
+    if (_hasLightPalettePreference && _lightPalette.name == palette.name) {
       return;
     }
 
     _lightPalette = palette;
+    _hasLightPalettePreference = true;
     notifyListeners();
 
     final preferences = await SharedPreferences.getInstance();

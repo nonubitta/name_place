@@ -19,7 +19,6 @@ class _SettingsPageState extends State<SettingsPage> {
   int _roundDuration = AppPreferences.defaultRoundDuration;
 
   String _appVersion = '';
-  String _buildNumber = '';
 
   bool _loading = true;
 
@@ -68,8 +67,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     setState(() {
-      _appVersion = packageInfo.version;
-      _buildNumber = packageInfo.buildNumber;
+      _appVersion = '${packageInfo.version} (${packageInfo.buildNumber})';
     });
   }
 
@@ -344,9 +342,9 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           _buildPlayerSection(),
           const SizedBox(height: 20),
-          _buildGameSettingsSection(),
-          const SizedBox(height: 20),
           _buildAppearanceSection(),
+          const SizedBox(height: 20),
+          _buildGameSettingsSection(),
           const SizedBox(height: 24),
           _buildAboutSection(),
         ],
@@ -688,7 +686,9 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               trailing: DropdownButtonHideUnderline(
                 child: DropdownButton<Object>(
-                  value: ThemeController.instance.lightPalette,
+                  value: ThemeController.instance.hasLightPalettePreference
+                      ? ThemeController.instance.lightPalette
+                      : 'random',
                   items: [
                     const DropdownMenuItem<Object>(
                       value: 'random',
@@ -801,16 +801,6 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'App Version',
             value: _appVersion.isEmpty ? 'Loading...' : _appVersion,
           ),
-
-          if (_buildNumber.isNotEmpty) ...[
-            const SizedBox(height: 13),
-            _buildAboutRow(
-              icon: Icons.build_outlined,
-              title: 'Build',
-              value: _buildNumber,
-            ),
-          ],
-
           const SizedBox(height: 4),
         ],
       ),
