@@ -8,6 +8,8 @@
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
 		<string>Name Place</string>
+		<key>NSLocalNetworkUsageDescription</key>
+		<string>Name Place uses your local network to find and connect to nearby players.</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>

@@ -15,11 +15,12 @@ class DiscoveryService {
   final StreamController<GameRoom> _roomsController =
       StreamController<GameRoom>.broadcast();
 
-    final StreamController<String> _closedRoomsController =
+  final StreamController<String> _closedRoomsController =
       StreamController<String>.broadcast();
 
   Stream<GameRoom> get roomsStream => _roomsController.stream;
-    Stream<String> get closedRoomsStream => _closedRoomsController.stream;
+
+  Stream<String> get closedRoomsStream => _closedRoomsController.stream;
 
   Future<void> startHost({
     required String roomCode,
@@ -39,6 +40,8 @@ class DiscoveryService {
     _hosting = true;
     _hostRoomCode = roomCode;
 
+    final broadcastAddresses = await _getBroadcastAddresses();
+
     void broadcast() {
       final message = jsonEncode({
         'type': 'npat_game',
@@ -49,11 +52,17 @@ class DiscoveryService {
 
       final bytes = utf8.encode(message);
 
-      _socket!.send(
-        bytes,
-        InternetAddress('255.255.255.255'),
-        discoveryPort,
-      );
+      for (final address in broadcastAddresses) {
+        try {
+          _socket!.send(
+            bytes,
+            address,
+            discoveryPort,
+          );
+        } catch (e) {
+          print('Discovery broadcast error to $address: $e');
+        }
+      }
     }
 
     broadcast();
@@ -62,6 +71,45 @@ class DiscoveryService {
       const Duration(seconds: 2),
       (_) => broadcast(),
     );
+  }
+
+  Future<List<InternetAddress>> _getBroadcastAddresses() async {
+    final interfaces = await NetworkInterface.list(
+      includeLoopback: false,
+      type: InternetAddressType.IPv4,
+    );
+
+    final addresses = <InternetAddress>[];
+
+    for (final interface in interfaces) {
+      for (final address in interface.addresses) {
+        if (address.type != InternetAddressType.IPv4) {
+          continue;
+        }
+
+        final parts = address.address.split('.');
+
+        if (parts.length != 4) {
+          continue;
+        }
+
+        final broadcastAddress =
+            '${parts[0]}.${parts[1]}.${parts[2]}.255';
+
+        final broadcast = InternetAddress(broadcastAddress);
+
+        if (!addresses.any((a) => a.address == broadcast.address)) {
+          addresses.add(broadcast);
+        }
+      }
+    }
+
+    // Fallback in case no interface was found.
+    if (addresses.isEmpty) {
+      addresses.add(InternetAddress('255.255.255.255'));
+    }
+
+    return addresses;
   }
 
   Future<void> startDiscovery() async {
@@ -94,9 +142,11 @@ class DiscoveryService {
 
         if (message['type'] == 'npat_game_closed') {
           final roomCode = message['roomCode']?.toString();
+
           if (roomCode != null && roomCode.isNotEmpty) {
             _closedRoomsController.add(roomCode);
           }
+
           return;
         }
 
@@ -124,20 +174,31 @@ class DiscoveryService {
     final roomCode = _hostRoomCode;
 
     if (announceClosure && _hosting && socket != null && roomCode != null) {
-      socket.send(
-        utf8.encode(
-          jsonEncode({
-            'type': 'npat_game_closed',
-            'roomCode': roomCode,
-          }),
-        ),
-        InternetAddress('255.255.255.255'),
-        discoveryPort,
+      final broadcastAddresses = await _getBroadcastAddresses();
+
+      final message = utf8.encode(
+        jsonEncode({
+          'type': 'npat_game_closed',
+          'roomCode': roomCode,
+        }),
       );
+
+      for (final address in broadcastAddresses) {
+        try {
+          socket.send(
+            message,
+            address,
+            discoveryPort,
+          );
+        } catch (e) {
+          print('Discovery close broadcast error to $address: $e');
+        }
+      }
     }
 
     _hosting = false;
     _hostRoomCode = null;
+
     socket?.close();
     _socket = null;
   }
