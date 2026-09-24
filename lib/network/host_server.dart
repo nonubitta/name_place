@@ -444,6 +444,8 @@ class HostServer with WidgetsBindingObserver {
 
         if (answer.isEmpty) {
           points = 0;
+        } else if (!_startsWithCurrentLetter(answer)) {
+          points = 0;
         } else {
           final normalizedAnswer = answer.toLowerCase();
 
@@ -487,6 +489,16 @@ class HostServer with WidgetsBindingObserver {
     }
 
     return scores;
+  }
+
+  bool _startsWithCurrentLetter(String answer) {
+    final letter = _currentLetter.trim();
+
+    if (letter.isEmpty || answer.isEmpty) {
+      return false;
+    }
+
+    return answer.characters.first.toUpperCase() == letter.toUpperCase();
   }
 
   Future<void> endGame() async {
