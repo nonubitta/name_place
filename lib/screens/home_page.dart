@@ -120,17 +120,32 @@ class HomePage extends StatelessWidget {
           ),
           SafeArea(
             child: Align(
-              alignment: Alignment.bottomRight,
+              alignment: Alignment.bottomCenter,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Text(
-                  'Random Palette Color: '
-                  '${ThemeController.instance.lightPalette.name}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: onColor.withValues(alpha: 0.7),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Random Palette Color: '
+                        '${ThemeController.instance.lightPalette.name}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: onColor.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.shuffle_rounded),
+                        iconSize: 18,
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Shuffle palette color',
+                        color: onColor.withValues(alpha: 0.7),
+                        onPressed: () async {
+                          await ThemeController.instance.clearPreferences();
+                        },
+                      ),
+                    ],
                   ),
-                ),
               ),
             ),
           ),
