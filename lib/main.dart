@@ -24,7 +24,7 @@ class NamePlaceAnimalThingApp extends StatelessWidget {
         final palette = ThemeController.instance.lightPalette;
 
         return MaterialApp(
-          title: 'Name Place Animal Thing',
+          title: 'Name Place Multiplayer',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(palette),
           darkTheme: AppTheme.dark(),
