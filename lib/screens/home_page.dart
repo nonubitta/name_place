@@ -13,7 +13,7 @@ class HomePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Name Place Animal Thing'),
+        title: const Text('Name Place Multiplayer'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -53,7 +53,7 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 28),
 
                     Text(
-                      'Name Place Animal Thing',
+                      'Name Place Multiplayer',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 30,

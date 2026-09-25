@@ -791,7 +791,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 12),
 
           const Text(
-            'Name Place',
+            'Name Place Multiplayer',
             style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
           ),
 

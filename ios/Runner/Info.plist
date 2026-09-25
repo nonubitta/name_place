@@ -7,7 +7,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Name Place</string>
+		<string>Name Place - Multiplayer</string>
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>Name Place uses your local network to find and connect to nearby players.</string>
 		<key>CFBundleExecutable</key>
@@ -17,7 +17,7 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-		<string>Name Place</string>
+		<string>Name Place - Multiplayer</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
